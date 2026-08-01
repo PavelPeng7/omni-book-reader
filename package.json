@@ -1,0 +1,29 @@
+{
+  "name": "omnireader",
+  "version": "0.6.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "package": "node scripts/package-release.mjs",
+    "release:check": "npm run check && npm test && npm run build && npm run package"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "foliate-js": "1.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.29",
+    "esbuild": "0.25.5",
+    "jsdom": "26.1.0",
+    "obsidian": "1.13.1",
+    "typescript": "5.8.3",
+    "vitest": "3.2.4"
+  }
+}

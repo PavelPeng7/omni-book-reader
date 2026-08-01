@@ -1,0 +1,174 @@
+export type ReaderTheme = "auto" | "light" | "dark" | "sepia";
+export type ReaderLayout = "paginated" | "scrolled";
+export type ReaderFont = "obsidian" | "publisher" | "serif" | "sans";
+export type HighlightColor = "yellow" | "green" | "blue" | "pink";
+export type HighlightStyle = "highlight" | "underline" | "strikethrough" | "squiggly";
+export type ExportTemplatePreset = "classic" | "compact" | "callout" | "custom";
+
+export interface ReaderSettings {
+  theme: ReaderTheme;
+  layout: ReaderLayout;
+  font: ReaderFont;
+  fontSizePercent: number;
+  lineHeight: number;
+  letterSpacing: number;
+  paragraphSpacing: number;
+  contentWidth: number;
+  pageMargin: number;
+  exportTemplate: ExportTemplatePreset;
+  customExportTemplatePath: string;
+}
+
+export interface SourceSignature {
+  size: number;
+  mtime: number;
+}
+
+export interface ReadingPosition {
+  cfi: string;
+  fraction: number;
+  updatedAt: number;
+}
+
+export interface Bookmark {
+  id: string;
+  cfi: string;
+  fraction: number;
+  chapter: string;
+  createdAt: number;
+  stale?: boolean;
+}
+
+export interface ReaderHighlight {
+  id: string;
+  cfi: string;
+  text: string;
+  chapter: string;
+  color: HighlightColor;
+  style: HighlightStyle;
+  tags: string[];
+  sectionIndex: number;
+  createdAt: number;
+  note?: string;
+  noteUpdatedAt?: number;
+  stale?: boolean;
+}
+
+export interface AnnotationDocuments {
+  highlightPath: string;
+  notePath: string;
+  createdDate: string;
+}
+
+export interface ReadingStats {
+  totalReadingMs: number;
+  lastOpenedAt: number;
+  lastReadAt: number;
+  furthestFraction: number;
+  completedAt?: number;
+}
+
+export interface BookState {
+  sourceSignature: SourceSignature;
+  position?: ReadingPosition;
+  bookmarks: Bookmark[];
+  highlights: ReaderHighlight[];
+  annotationDocuments?: AnnotationDocuments;
+  readingStats?: ReadingStats;
+  /** User-managed bookshelf metadata. These fields never affect the EPUB itself. */
+  hiddenFromBookshelf?: boolean;
+  inReadingList?: boolean;
+  customCoverPath?: string;
+}
+
+export interface ReaderData {
+  schemaVersion: 5;
+  settings: ReaderSettings;
+  books: Record<string, BookState>;
+}
+
+export interface FoliateTocItem {
+  label?: unknown;
+  href?: string;
+  subitems?: FoliateTocItem[];
+}
+
+export interface FoliateMetadata {
+  title?: unknown;
+  author?: unknown;
+  language?: unknown;
+}
+
+export interface FoliateBook {
+  toc?: FoliateTocItem[];
+  metadata?: FoliateMetadata;
+  dir?: "ltr" | "rtl";
+  rendition?: { layout?: string };
+  transformTarget?: EventTarget;
+  destroy?: () => void;
+  sections?: Array<{ unload?: () => void }>;
+}
+
+export interface FoliateRenderer extends HTMLElement {
+  setStyles?: (css: string) => void;
+  getContents?: () => Array<{ doc: Document; index: number }>;
+}
+
+export interface FoliateLocation {
+  cfi?: string;
+  fraction?: number;
+  tocItem?: { label?: unknown; href?: string };
+  pageItem?: { label?: unknown };
+  location?: { current?: number; total?: number };
+}
+
+export interface FoliateSearchExcerpt {
+  pre?: string;
+  match?: string;
+  post?: string;
+}
+
+export interface FoliateSearchItem {
+  cfi: string;
+  excerpt?: string | FoliateSearchExcerpt;
+}
+
+export type FoliateSearchResult =
+  | "done"
+  | { progress: number }
+  | { label?: string; subitems: FoliateSearchItem[] };
+
+export interface FoliateViewElement extends HTMLElement {
+  book: FoliateBook;
+  renderer: FoliateRenderer;
+  isFixedLayout?: boolean;
+  lastLocation?: FoliateLocation;
+  open(file: File): Promise<void>;
+  init(options: { lastLocation?: string; showTextStart: boolean }): Promise<void>;
+  close(): void;
+  goLeft(): Promise<void> | void;
+  goRight(): Promise<void> | void;
+  prev(): Promise<void> | void;
+  next(): Promise<void> | void;
+  goTo(target: string | number): Promise<unknown>;
+  goToFraction(fraction: number): Promise<void>;
+  select(target: string): Promise<void>;
+  deselect(): void;
+  getCFI(index: number, range?: Range): string;
+  resolveNavigation(target: string | number): { index: number; anchor?: unknown } | undefined;
+  addAnnotation(annotation: { value: string; color?: string; style?: HighlightStyle }): Promise<unknown>;
+  deleteAnnotation(annotation: { value: string }): Promise<unknown>;
+  search(options: {
+    query: string;
+    matchCase: boolean;
+    matchDiacritics: boolean;
+    matchWholeWords: boolean;
+  }): AsyncGenerator<FoliateSearchResult>;
+  clearSearch(): void;
+}
+
+export interface PublicationTransformDetail {
+  data: string | Blob | Promise<string | Blob>;
+  type?: string;
+  name?: string;
+}
