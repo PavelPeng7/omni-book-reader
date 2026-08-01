@@ -383,6 +383,8 @@ export class PavelEpubReaderView extends FileView {
   private themeObserver: MutationObserver | null = null;
   private layoutObserver: ResizeObserver | null = null;
   private layoutFrame: number | null = null;
+  private wheelDelta = 0;
+  private lastWheelTurnAt = 0;
   private bookTitle = "OmniReader";
   private bookAuthor = "";
   private fixedLayout = false;
@@ -411,6 +413,7 @@ export class PavelEpubReaderView extends FileView {
 
   async onOpen(): Promise<void> {
     this.buildShell();
+    this.registerDomEvent(document, "keydown", (event: KeyboardEvent) => this.handleMobileHardwareKey(event), true);
     this.themeObserver = new MutationObserver(() => this.applySettings());
     this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
     if (this.file) await this.loadBook(this.file);
@@ -624,6 +627,7 @@ export class PavelEpubReaderView extends FileView {
 
     root.addEventListener("keydown", (event) => this.handleKeydown(event));
     root.addEventListener("pointerdown", () => this.noteReadingActivity());
+    readingArea.addEventListener("wheel", (event) => this.handleWheel(event), { passive: false });
     this.layoutObserver?.disconnect();
     this.layoutObserver = new ResizeObserver(([entry]) => {
       const width = entry?.contentRect.width ?? readingArea.clientWidth;
@@ -842,6 +846,7 @@ export class PavelEpubReaderView extends FileView {
       this.handleKeydown(event);
       window.setTimeout(() => this.captureSelection(document, sectionIndex), 0);
     };
+    const wheel = (event: WheelEvent): void => this.handleWheel(event);
     const click = (event: MouseEvent): void => {
       const target = event.target as Element | null;
       const image = target?.closest?.("img");
@@ -863,11 +868,13 @@ export class PavelEpubReaderView extends FileView {
     };
     document.addEventListener("pointerup", pointerUp);
     document.addEventListener("keyup", keyUp);
+    document.addEventListener("wheel", wheel, { passive: false });
     document.addEventListener("click", click, true);
     document.addEventListener("click", focusClick);
     this.cleanupCallbacks.push(() => {
       document.removeEventListener("pointerup", pointerUp);
       document.removeEventListener("keyup", keyUp);
+      document.removeEventListener("wheel", wheel);
       document.removeEventListener("click", click, true);
       document.removeEventListener("click", focusClick);
     });
@@ -1531,19 +1538,53 @@ export class PavelEpubReaderView extends FileView {
       void this.moveFocus(1);
       return;
     }
-    if (event.key === "ArrowLeft") {
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
       event.preventDefault();
       void this.reader.goLeft();
-    } else if (event.key === "ArrowRight") {
+    } else if (event.key === "ArrowRight" || event.key === "ArrowDown") {
       event.preventDefault();
       void this.reader.goRight();
-    } else if (event.key === "PageUp") {
+    } else if (event.key === "PageUp" || event.key === "Home") {
       event.preventDefault();
-      void this.reader.prev();
-    } else if (event.key === "PageDown" || event.key === " ") {
+      if (event.key === "Home") void this.reader.goToFraction(0);
+      else void this.reader.prev();
+    } else if (event.key === "PageDown" || event.key === " " || event.key === "End") {
       event.preventDefault();
-      void this.reader.next();
+      if (event.key === "End") void this.reader.goToFraction(1);
+      else void this.reader.next();
     }
+  }
+
+  private handleWheel(event: WheelEvent): void {
+    if (!this.reader || this.plugin.getReaderSettings().layout !== "paginated") return;
+    if (event.ctrlKey || event.metaKey || isEditableTarget(event.target)) return;
+    const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    if (!delta) return;
+    event.preventDefault();
+    this.noteReadingActivity();
+    const normalized = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? delta * 16
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? delta * 100
+        : delta;
+    this.wheelDelta += normalized;
+    if (Math.abs(this.wheelDelta) < 70) return;
+    const now = Date.now();
+    if (now - this.lastWheelTurnAt < 260) return;
+    const forward = this.wheelDelta > 0;
+    this.wheelDelta = 0;
+    this.lastWheelTurnAt = now;
+    void (forward ? this.reader.goRight() : this.reader.goLeft());
+  }
+
+  private handleMobileHardwareKey(event: KeyboardEvent): void {
+    if (!Platform.isMobile || !this.reader || event.repeat || isEditableTarget(event.target)) return;
+    if (this.app.workspace.getActiveViewOfType(PavelEpubReaderView) !== this) return;
+    const previous = event.key === "AudioVolumeUp" || event.key === "VolumeUp" || event.code === "AudioVolumeUp";
+    const next = event.key === "AudioVolumeDown" || event.key === "VolumeDown" || event.code === "AudioVolumeDown";
+    if (!previous && !next) return;
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    this.noteReadingActivity();
+    void (next ? this.reader.goRight() : this.reader.goLeft());
   }
 
   private showLoading(message: string): void {
