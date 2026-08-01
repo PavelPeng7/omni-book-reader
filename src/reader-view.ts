@@ -373,6 +373,7 @@ export class PavelEpubReaderView extends FileView {
   private statsLastActivity = 0;
   private sessionReadingMs = 0;
   private focusMode = false;
+  private sidebarOpenBeforeFocus = false;
   private focusDocument: Document | null = null;
   private focusParagraphs: Element[] = [];
   private focusIndex = -1;
@@ -941,12 +942,18 @@ export class PavelEpubReaderView extends FileView {
     this.focusControlsEl?.toggleClass("is-visible", enabled);
     if (!enabled) {
       this.clearFocusDocument();
+      this.setSidebarOpen(this.sidebarOpenBeforeFocus);
       return;
     }
+    this.sidebarOpenBeforeFocus = this.sidebarOpen;
+    this.setSidebarOpen(false);
     const content = this.reader?.renderer.getContents?.()[0];
     if (!content) {
       this.focusMode = false;
       this.rootEl?.removeClass("is-focus-mode");
+      this.focusButton?.removeClass("is-active");
+      this.focusControlsEl?.removeClass("is-visible");
+      this.setSidebarOpen(this.sidebarOpenBeforeFocus);
       new Notice("当前章节还没有可聚焦的段落");
       return;
     }

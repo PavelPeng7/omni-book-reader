@@ -513,6 +513,42 @@
   display: flex;
 }
 
+/* Focus mode turns the active reader tab into a distraction-free page. */
+.pavel-epub-reader.is-focus-mode {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.pavel-epub-reader.is-focus-mode .pavel-epub-header,
+.pavel-epub-reader.is-focus-mode .pavel-epub-footer,
+.pavel-epub-reader.is-focus-mode .pavel-epub-sidebar,
+.pavel-epub-reader.is-focus-mode .pavel-epub-sidebar-backdrop,
+.pavel-epub-reader.is-focus-mode .pavel-epub-page-button {
+  display: none;
+}
+
+.pavel-epub-reader.is-focus-mode .pavel-epub-body,
+.pavel-epub-reader.is-focus-mode .pavel-epub-reading-area,
+.pavel-epub-reader.is-focus-mode .pavel-epub-viewer {
+  width: 100%;
+  height: 100%;
+}
+
+.pavel-epub-reader.is-focus-mode .pavel-epub-reading-area {
+  display: block;
+  padding: 0;
+}
+
+.pavel-epub-reader.is-focus-mode .pavel-epub-viewer {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.pavel-epub-reader.is-focus-mode .pavel-epub-focus-controls {
+  z-index: 30;
+  bottom: max(14px, env(safe-area-inset-bottom));
+}
+
 .pavel-epub-image-preview {
   width: min(760px, 82vw);
   height: min(560px, 62vh);
