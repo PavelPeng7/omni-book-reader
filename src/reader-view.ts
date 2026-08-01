@@ -342,7 +342,6 @@ export class PavelEpubReaderView extends FileView {
   private readingStatsEl: HTMLElement | null = null;
   private bookmarkButton: HTMLButtonElement | null = null;
   private focusButton: HTMLButtonElement | null = null;
-  private focusControlsEl: HTMLElement | null = null;
   private selectionToolbarEl: HTMLElement | null = null;
   private searchInputEl: HTMLInputElement | null = null;
   private searchStatusEl: HTMLElement | null = null;
@@ -374,10 +373,6 @@ export class PavelEpubReaderView extends FileView {
   private sessionReadingMs = 0;
   private focusMode = false;
   private sidebarOpenBeforeFocus = false;
-  private focusDocument: Document | null = null;
-  private focusParagraphs: Element[] = [];
-  private focusIndex = -1;
-  private pendingFocusDirection: "first" | "last" | null = null;
   private loadGeneration = 0;
   private cleanupCallbacks: Array<() => void> = [];
   private searchSession = new SearchSession();
@@ -556,7 +551,7 @@ export class PavelEpubReaderView extends FileView {
     exportChapter.addEventListener("click", () => void this.exportCurrentChapter());
     const stats = iconButton(headerActions, "chart-no-axes-column-increasing", "阅读统计");
     stats.addEventListener("click", () => this.openReadingStats());
-    this.focusButton = iconButton(headerActions, "scan-text", "专注段落模式");
+    this.focusButton = iconButton(headerActions, "maximize", "沉浸式阅读");
     this.focusButton.addEventListener("click", () => this.toggleFocusMode());
     const settings = iconButton(headerActions, "settings-2", "阅读设置");
     settings.addEventListener("click", () => new ReaderSettingsModal(this.app, this.plugin, this.fixedLayout).open());
@@ -576,13 +571,6 @@ export class PavelEpubReaderView extends FileView {
     const next = iconButton(readingArea, "chevron-right", "下一页");
     next.addClass("pavel-epub-page-button", "is-next");
     next.addEventListener("click", () => void this.reader?.goRight());
-    this.focusControlsEl = readingArea.createDiv({ cls: "pavel-epub-focus-controls" });
-    const previousParagraph = iconButton(this.focusControlsEl, "chevron-up", "上一段");
-    previousParagraph.addEventListener("click", () => void this.moveFocus(-1));
-    const exitFocus = this.focusControlsEl.createEl("button", { text: "退出专注", attr: { type: "button" } });
-    exitFocus.addEventListener("click", () => this.toggleFocusMode(false));
-    const nextParagraph = iconButton(this.focusControlsEl, "chevron-down", "下一段");
-    nextParagraph.addEventListener("click", () => void this.moveFocus(1));
 
     const footer = root.createDiv({ cls: "pavel-epub-footer" });
     this.progressTextEl = footer.createSpan({ cls: "pavel-epub-progress-text", text: "0%" });
@@ -746,8 +734,6 @@ export class PavelEpubReaderView extends FileView {
     const onLoad = (event: Event): void => {
       const detail = (event as CustomEvent<{ doc: Document; index: number }>).detail;
       this.attachDocumentEvents(detail.doc, detail.index);
-      if (this.focusMode) this.setFocusDocument(detail.doc, this.pendingFocusDirection ?? "first");
-      this.pendingFocusDirection = null;
     };
     const onCreateOverlay = (event: Event): void => {
       const index = (event as CustomEvent<{ index: number }>).detail.index;
@@ -859,25 +845,15 @@ export class PavelEpubReaderView extends FileView {
       event.stopPropagation();
       this.openImagePreview(source, image.getAttribute("alt") ?? "");
     };
-    const focusClick = (event: MouseEvent): void => {
-      if (!this.focusMode) return;
-      const target = event.target as Element | null;
-      const paragraph = target?.closest?.("p, li, blockquote, pre, h1, h2, h3, h4, h5, h6");
-      if (!paragraph) return;
-      const index = this.focusParagraphs.indexOf(paragraph);
-      if (index >= 0) this.focusAt(index);
-    };
     document.addEventListener("pointerup", pointerUp);
     document.addEventListener("keyup", keyUp);
     document.addEventListener("wheel", wheel, { passive: false });
     document.addEventListener("click", click, true);
-    document.addEventListener("click", focusClick);
     this.cleanupCallbacks.push(() => {
       document.removeEventListener("pointerup", pointerUp);
       document.removeEventListener("keyup", keyUp);
       document.removeEventListener("wheel", wheel);
       document.removeEventListener("click", click, true);
-      document.removeEventListener("click", focusClick);
     });
   }
 
@@ -939,69 +915,12 @@ export class PavelEpubReaderView extends FileView {
     this.focusMode = enabled;
     this.rootEl?.toggleClass("is-focus-mode", enabled);
     this.focusButton?.toggleClass("is-active", enabled);
-    this.focusControlsEl?.toggleClass("is-visible", enabled);
     if (!enabled) {
-      this.clearFocusDocument();
       this.setSidebarOpen(this.sidebarOpenBeforeFocus);
       return;
     }
     this.sidebarOpenBeforeFocus = this.sidebarOpen;
     this.setSidebarOpen(false);
-    const content = this.reader?.renderer.getContents?.()[0];
-    if (!content) {
-      this.focusMode = false;
-      this.rootEl?.removeClass("is-focus-mode");
-      this.focusButton?.removeClass("is-active");
-      this.focusControlsEl?.removeClass("is-visible");
-      this.setSidebarOpen(this.sidebarOpenBeforeFocus);
-      new Notice("当前章节还没有可聚焦的段落");
-      return;
-    }
-    this.setFocusDocument(content.doc, "first");
-  }
-
-  private setFocusDocument(document: Document, edge: "first" | "last"): void {
-    this.clearFocusDocument();
-    this.focusDocument = document;
-    document.body.classList.add("pavel-epub-focus-mode");
-    const selector = "p, li, blockquote, pre, h1, h2, h3, h4, h5, h6";
-    this.focusParagraphs = Array.from(document.body.querySelectorAll(selector))
-      .filter((element) => Boolean(element.textContent?.replace(/\s+/g, " ").trim()))
-      .filter((element) => {
-        const parent = element.parentElement?.closest(selector);
-        return !parent || !document.body.contains(parent);
-      });
-    if (!this.focusParagraphs.length) return;
-    this.focusAt(edge === "last" ? this.focusParagraphs.length - 1 : 0);
-  }
-
-  private clearFocusDocument(): void {
-    this.focusDocument?.body.classList.remove("pavel-epub-focus-mode");
-    for (const element of this.focusParagraphs) element.classList.remove("pavel-epub-focused-paragraph");
-    this.focusDocument = null;
-    this.focusParagraphs = [];
-    this.focusIndex = -1;
-  }
-
-  private focusAt(index: number): void {
-    if (index < 0 || index >= this.focusParagraphs.length) return;
-    this.focusParagraphs[this.focusIndex]?.classList.remove("pavel-epub-focused-paragraph");
-    this.focusIndex = index;
-    const element = this.focusParagraphs[index];
-    element?.classList.add("pavel-epub-focused-paragraph");
-    element?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }
-
-  private async moveFocus(direction: -1 | 1): Promise<void> {
-    if (!this.focusMode || !this.reader) return;
-    const next = this.focusIndex + direction;
-    if (next >= 0 && next < this.focusParagraphs.length) {
-      this.focusAt(next);
-      return;
-    }
-    this.pendingFocusDirection = direction > 0 ? "first" : "last";
-    if (direction > 0) await this.reader.next();
-    else await this.reader.prev();
   }
 
   private captureSelection(document: Document, sectionIndex: number): void {
@@ -1535,16 +1454,6 @@ export class PavelEpubReaderView extends FileView {
       return;
     }
     if (!this.reader || event.metaKey || event.ctrlKey || event.altKey) return;
-    if (this.focusMode && event.key === "ArrowUp") {
-      event.preventDefault();
-      void this.moveFocus(-1);
-      return;
-    }
-    if (this.focusMode && event.key === "ArrowDown") {
-      event.preventDefault();
-      void this.moveFocus(1);
-      return;
-    }
     if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
       event.preventDefault();
       void this.reader.goLeft();

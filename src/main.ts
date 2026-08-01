@@ -178,7 +178,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
 
     this.addCommand({
       id: "toggle-focus-paragraph",
-      name: "OmniReader：切换专注段落模式",
+      name: "OmniReader：切换沉浸式阅读",
       checkCallback: (checking) => {
         const view = this.getActiveReader();
         if (!checking) view?.toggleFocusMode();
