@@ -549,6 +549,95 @@
   bottom: max(14px, env(safe-area-inset-bottom));
 }
 
+.pavel-epub-immersive-exit,
+.pavel-epub-immersive-footer {
+  display: none;
+}
+
+.pavel-epub-reader.is-focus-mode .pavel-epub-immersive-exit {
+  position: absolute;
+  z-index: 31;
+  top: max(14px, env(safe-area-inset-top));
+  left: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 13px;
+  color: var(--pavel-botanical-forest, var(--text-normal));
+  font-size: var(--font-ui-small);
+  background: color-mix(in srgb, var(--pavel-botanical-paper-raised, var(--background-primary)) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pavel-botanical-stone, var(--background-modifier-border)) 75%, transparent);
+  border-radius: 999px;
+  box-shadow: var(--pavel-botanical-shadow-sm, 0 4px 16px rgb(0 0 0 / 12%));
+  backdrop-filter: blur(10px);
+}
+
+.pavel-epub-immersive-exit-icon {
+  display: inline-flex;
+}
+
+.pavel-epub-immersive-exit-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.pavel-epub-reader.is-focus-mode .pavel-epub-immersive-footer {
+  position: absolute;
+  z-index: 31;
+  right: 18px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(18px, 5vw, 56px);
+  min-height: 42px;
+  color: var(--pavel-botanical-muted, var(--text-muted));
+  font-size: var(--font-ui-small);
+  pointer-events: none;
+}
+
+.pavel-epub-immersive-footer button {
+  min-height: 38px;
+  padding: 7px 10px;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  pointer-events: auto;
+}
+
+.pavel-epub-immersive-footer button:hover {
+  color: var(--pavel-botanical-terracotta, var(--text-accent));
+  background: color-mix(in srgb, var(--pavel-botanical-paper-raised, var(--background-primary)) 75%, transparent);
+  border-radius: 999px;
+}
+
+.pavel-epub-immersive-footer span {
+  min-width: 90px;
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .pavel-epub-reader.is-focus-mode .pavel-epub-immersive-exit {
+    left: 10px;
+    padding-inline: 10px;
+  }
+
+  .pavel-epub-reader.is-focus-mode .pavel-epub-immersive-footer {
+    right: 6px;
+    left: 6px;
+    gap: 8px;
+  }
+
+  .pavel-epub-immersive-footer span {
+    min-width: 0;
+  }
+}
+
 .pavel-epub-image-preview {
   width: min(760px, 82vw);
   height: min(560px, 62vh);

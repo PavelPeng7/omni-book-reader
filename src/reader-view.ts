@@ -339,6 +339,7 @@ export class PavelEpubReaderView extends FileView {
   private progressEl: HTMLInputElement | null = null;
   private progressTextEl: HTMLElement | null = null;
   private locationTextEl: HTMLElement | null = null;
+  private immersiveLocationEl: HTMLElement | null = null;
   private readingStatsEl: HTMLElement | null = null;
   private bookmarkButton: HTMLButtonElement | null = null;
   private focusButton: HTMLButtonElement | null = null;
@@ -571,6 +572,20 @@ export class PavelEpubReaderView extends FileView {
     const next = iconButton(readingArea, "chevron-right", "下一页");
     next.addClass("pavel-epub-page-button", "is-next");
     next.addEventListener("click", () => void this.reader?.goRight());
+
+    const immersiveExit = readingArea.createEl("button", {
+      cls: "pavel-epub-immersive-exit",
+      text: "退出沉浸式阅读",
+      attr: { type: "button", "aria-label": "退出沉浸式阅读" },
+    });
+    setIcon(immersiveExit.createSpan({ cls: "pavel-epub-immersive-exit-icon" }), "minimize");
+    immersiveExit.addEventListener("click", () => this.toggleFocusMode(false));
+    const immersiveFooter = readingArea.createDiv({ cls: "pavel-epub-immersive-footer", attr: { "aria-label": "沉浸式阅读翻页" } });
+    const immersivePrevious = immersiveFooter.createEl("button", { text: "← 上一页", attr: { type: "button" } });
+    immersivePrevious.addEventListener("click", () => void this.reader?.goLeft());
+    this.immersiveLocationEl = immersiveFooter.createSpan({ text: "正在定位" });
+    const immersiveNext = immersiveFooter.createEl("button", { text: "下一页 →", attr: { type: "button" } });
+    immersiveNext.addEventListener("click", () => void this.reader?.goRight());
 
     const footer = root.createDiv({ cls: "pavel-epub-footer" });
     this.progressTextEl = footer.createSpan({ cls: "pavel-epub-progress-text", text: "0%" });
@@ -1065,7 +1080,10 @@ export class PavelEpubReaderView extends FileView {
     this.chapterEl?.setText(chapter);
     const page = formatLanguageValue(location.pageItem?.label);
     const loc = location.location?.current;
-    this.locationTextEl?.setText(page ? `第 ${page} 页` : loc ? `位置 ${loc}` : "");
+    const total = location.location?.total;
+    const locationText = page ? `第 ${page} 页` : loc && total ? `第 ${loc} / ${total} 页` : loc ? `位置 ${loc}` : "";
+    this.locationTextEl?.setText(locationText);
+    this.immersiveLocationEl?.setText(locationText || "正在定位");
     this.updateCurrentToc(location.tocItem?.href);
     this.updateBookmarkButton();
 
