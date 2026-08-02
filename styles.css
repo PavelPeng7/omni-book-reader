@@ -561,9 +561,12 @@
   left: 18px;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  min-height: 38px;
-  padding: 8px 13px;
+  justify-content: center;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
   color: var(--pavel-botanical-forest, var(--text-normal));
   font-size: var(--font-ui-small);
   background: color-mix(in srgb, var(--pavel-botanical-paper-raised, var(--background-primary)) 88%, transparent);
@@ -573,11 +576,7 @@
   backdrop-filter: blur(10px);
 }
 
-.pavel-epub-immersive-exit-icon {
-  display: inline-flex;
-}
-
-.pavel-epub-immersive-exit-icon svg {
+.pavel-epub-immersive-exit svg {
   width: 15px;
   height: 15px;
 }
@@ -624,7 +623,6 @@
 @media (max-width: 520px) {
   .pavel-epub-reader.is-focus-mode .pavel-epub-immersive-exit {
     left: 10px;
-    padding-inline: 10px;
   }
 
   .pavel-epub-reader.is-focus-mode .pavel-epub-immersive-footer {

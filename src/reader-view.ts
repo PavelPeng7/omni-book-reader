@@ -575,10 +575,9 @@ export class PavelEpubReaderView extends FileView {
 
     const immersiveExit = readingArea.createEl("button", {
       cls: "pavel-epub-immersive-exit",
-      text: "退出沉浸式阅读",
-      attr: { type: "button", "aria-label": "退出沉浸式阅读" },
+      attr: { type: "button", "aria-label": "退出沉浸式阅读", title: "退出沉浸式阅读" },
     });
-    setIcon(immersiveExit.createSpan({ cls: "pavel-epub-immersive-exit-icon" }), "minimize");
+    setIcon(immersiveExit, "arrow-left");
     immersiveExit.addEventListener("click", () => this.toggleFocusMode(false));
     const immersiveFooter = readingArea.createDiv({ cls: "pavel-epub-immersive-footer", attr: { "aria-label": "沉浸式阅读翻页" } });
     const immersivePrevious = immersiveFooter.createEl("button", { text: "← 上一页", attr: { type: "button" } });
