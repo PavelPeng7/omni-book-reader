@@ -161,7 +161,7 @@ export class PavelEpubSettingTab extends PluginSettingTab {
   display(): void {
     this.containerEl.empty();
     this.containerEl.addClass("pavel-epub-settings-page");
-    new Setting(this.containerEl).setName("OmniReader").setHeading();
+    new Setting(this.containerEl).setName("阅读设置").setHeading();
     renderSettings(this.containerEl, this.host, false);
   }
 }
