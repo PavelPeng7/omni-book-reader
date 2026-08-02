@@ -48,7 +48,6 @@ function renderSettings(
     .addSlider((slider) => slider
       .setLimits(80, 180, 5)
       .setValue(get().fontSizePercent)
-      .setDynamicTooltip()
       .setDisabled(fixedLayout)
       .onChange((fontSizePercent) => host.updateReaderSettings({ fontSizePercent })));
 
@@ -58,7 +57,6 @@ function renderSettings(
     .addSlider((slider) => slider
       .setLimits(1.2, 2.2, 0.1)
       .setValue(get().lineHeight)
-      .setDynamicTooltip()
       .setDisabled(fixedLayout)
       .onChange((lineHeight) => host.updateReaderSettings({ lineHeight })));
 
@@ -68,7 +66,6 @@ function renderSettings(
     .addSlider((slider) => slider
       .setLimits(-0.02, 0.12, 0.01)
       .setValue(get().letterSpacing)
-      .setDynamicTooltip()
       .setDisabled(fixedLayout)
       .onChange((letterSpacing) => host.updateReaderSettings({ letterSpacing })));
 
@@ -78,7 +75,6 @@ function renderSettings(
     .addSlider((slider) => slider
       .setLimits(0, 1.2, 0.05)
       .setValue(get().paragraphSpacing)
-      .setDynamicTooltip()
       .setDisabled(fixedLayout)
       .onChange((paragraphSpacing) => host.updateReaderSettings({ paragraphSpacing })));
 
@@ -88,7 +84,6 @@ function renderSettings(
     .addSlider((slider) => slider
       .setLimits(480, 1200, 20)
       .setValue(get().contentWidth)
-      .setDynamicTooltip()
       .setDisabled(fixedLayout)
       .onChange((contentWidth) => host.updateReaderSettings({ contentWidth })));
 
@@ -98,7 +93,6 @@ function renderSettings(
     .addSlider((slider) => slider
       .setLimits(0, 80, 4)
       .setValue(get().pageMargin)
-      .setDynamicTooltip()
       .setDisabled(fixedLayout)
       .onChange((pageMargin) => host.updateReaderSettings({ pageMargin })));
 
@@ -167,7 +161,7 @@ export class PavelEpubSettingTab extends PluginSettingTab {
   display(): void {
     this.containerEl.empty();
     this.containerEl.addClass("pavel-epub-settings-page");
-    this.containerEl.createEl("h2", { text: "OmniReader" });
+    new Setting(this.containerEl).setName("OmniReader").setHeading();
     renderSettings(this.containerEl, this.host, false);
   }
 }

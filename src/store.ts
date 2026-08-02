@@ -171,7 +171,7 @@ export function normalizeReaderData(value: unknown): ReaderData {
 
 export class ReaderDataStore {
   private data: ReaderData = createDefaultData();
-  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private saveTimer: number | null = null;
   private saveChain: Promise<void> = Promise.resolve();
   private dirty = false;
 
@@ -256,8 +256,8 @@ export class ReaderDataStore {
 
   markChanged(delayMs = 250): void {
     this.dirty = true;
-    if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => {
+    if (this.saveTimer) window.clearTimeout(this.saveTimer);
+    this.saveTimer = window.setTimeout(() => {
       this.saveTimer = null;
       void this.persist();
     }, Math.max(0, delayMs));
@@ -279,7 +279,7 @@ export class ReaderDataStore {
 
   async flush(): Promise<void> {
     if (this.saveTimer) {
-      clearTimeout(this.saveTimer);
+      window.clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
     await this.persist();

@@ -6,7 +6,11 @@ function isFile(value: TAbstractFile | null): value is TFile {
 }
 
 export function safeFileName(value: string, fallback = "未命名"): string {
-  const result = value.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").replace(/\s+/g, " ").trim();
+  const result = Array.from(value, (character) => character.charCodeAt(0) < 32 ? "-" : character)
+    .join("")
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
   return (result || fallback).slice(0, 120);
 }
 
@@ -24,9 +28,20 @@ export async function sourceToBlob(source: string): Promise<Blob> {
   if (!source.startsWith("blob:") && !source.startsWith("data:")) {
     throw new Error("只允许读取书内 Blob/Data 图片");
   }
-  const response = await fetch(source);
-  if (!response.ok) throw new Error(`读取图片失败：${response.status}`);
-  return response.blob();
+  return readLocalBlob(source);
+}
+
+function readLocalBlob(source: string): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("GET", source);
+    request.responseType = "blob";
+    request.onload = () => request.status === 0 || (request.status >= 200 && request.status < 300)
+      ? resolve(request.response as Blob)
+      : reject(new Error(`读取图片失败：${request.status}`));
+    request.onerror = () => reject(new Error("读取图片失败"));
+    request.send();
+  });
 }
 
 export function extensionForBlob(blob: Blob, source = ""): string {
@@ -51,24 +66,4 @@ export async function saveBlobToVault(vault: Vault, path: string, blob: Blob): P
   if (isFile(existing)) await vault.modifyBinary(existing, data);
   else if (existing) throw new Error(`图片目标路径不是文件：${path}`);
   else await vault.createBinary(path, data);
-}
-
-export async function copyImageBlob(blob: Blob): Promise<void> {
-  if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
-    throw new Error("当前平台不支持复制图片到剪贴板");
-  }
-  let output = blob;
-  if (blob.type !== "image/png") {
-    const bitmap = await createImageBitmap(blob);
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
-    bitmap.close();
-    output = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
-      (value) => value ? resolve(value) : reject(new Error("图片转换失败")),
-      "image/png",
-    ));
-  }
-  await navigator.clipboard.write([new ClipboardItem({ "image/png": output })]);
 }

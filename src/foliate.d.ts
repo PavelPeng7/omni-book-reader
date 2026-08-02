@@ -1,5 +1,12 @@
 declare module "foliate-js/view.js" {
-  export function makeBook(file: any): Promise<any>;
+  export interface FoliateBook {
+    metadata?: { title?: unknown };
+    sections?: Array<{ unload?: () => void }>;
+    toc?: unknown[];
+    destroy?: () => void;
+  }
+
+  export function makeBook(file: unknown): Promise<FoliateBook>;
 }
 
 declare module "foliate-js/footnotes.js" {

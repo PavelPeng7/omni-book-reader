@@ -12,7 +12,7 @@ import {
 } from "obsidian";
 import type { AnnotationDocumentInput } from "./annotation-documents";
 import { exportChapterMarkdown } from "./chapter-export";
-import { copyImageBlob, extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
+import { extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
 import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
 import { installPublicationSanitizer } from "./sanitizer";
 import { SearchSession } from "./search-session";
@@ -292,18 +292,13 @@ class ImagePreviewModal extends Modal {
     const zoomText = controls.createSpan({ text: "100%" });
     zoom.addEventListener("input", () => {
       const value = Number(zoom.value);
-      image.style.width = `${value}%`;
+      image.setCssStyles({ width: `${value}%` });
       zoomText.setText(`${value}%`);
     });
     const actions = this.contentEl.createDiv({ cls: "pavel-epub-modal-actions" });
     const close = actions.createEl("button", { text: "关闭" });
-    const copy = actions.createEl("button", { text: "复制图片" });
     const save = actions.createEl("button", { cls: "mod-cta", text: "保存到 Vault" });
     close.addEventListener("click", () => this.close());
-    copy.addEventListener("click", () => void this.run(copy, async () => {
-      await copyImageBlob(await this.getBlob());
-      new Notice("图片已复制到剪贴板");
-    }));
     save.addEventListener("click", () => void this.run(save, async () => {
       const path = await this.onSave(await this.getBlob());
       new Notice(`图片已保存：${path}`);
@@ -450,12 +445,8 @@ export class PavelEpubReaderView extends FileView {
       Boolean(this.rootEl?.hasClass("is-compact-reading-area")),
     );
     if (viewportWidth) {
-      this.reader.style.width = `${viewportWidth}px`;
-      this.reader.style.maxWidth = "100%";
-      this.reader.style.minWidth = "0";
-      renderer.style.width = "100%";
-      renderer.style.maxWidth = "100%";
-      renderer.style.minWidth = "0";
+      this.reader.setCssStyles({ width: `${viewportWidth}px`, maxWidth: "100%", minWidth: "0" });
+      renderer.setCssStyles({ width: "100%", maxWidth: "100%", minWidth: "0" });
     }
     if (!this.fixedLayout) {
       applyReflowableLayout(renderer, settings, viewportWidth);
@@ -705,9 +696,9 @@ export class PavelEpubReaderView extends FileView {
         type: "application/epub+zip",
         lastModified: file.stat.mtime,
       });
+      this.viewerEl.empty();
       const reader = document.createElement("foliate-view") as FoliateViewElement;
       reader.addClass("pavel-epub-foliate-view");
-      this.viewerEl.empty();
       this.viewerEl.append(reader);
       this.reader = reader;
       this.attachReaderEvents(reader);
@@ -1335,7 +1326,7 @@ export class PavelEpubReaderView extends FileView {
     }
     for (const highlight of filteredItems) {
       const row = this.highlightPanelEl.createDiv({ cls: `pavel-epub-saved-item is-highlight is-style-${highlight.style}${highlight.stale ? " is-stale" : ""}` });
-      row.style.setProperty("--highlight-color", HIGHLIGHT_COLORS[highlight.color].value);
+      row.setCssProps({ "--highlight-color": HIGHLIGHT_COLORS[highlight.color].value });
       const open = row.createEl("button", { cls: "pavel-epub-saved-content", attr: { type: "button" } });
       open.createDiv({ cls: "pavel-epub-highlight-text", text: highlight.text });
       open.createDiv({ cls: "pavel-epub-saved-meta", text: `${highlight.chapter} · ${HIGHLIGHT_STYLES[highlight.style].label}` });

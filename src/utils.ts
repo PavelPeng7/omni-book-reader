@@ -10,7 +10,7 @@ export function isValidCfi(value: unknown): value is string {
 }
 
 export function createId(prefix: string): string {
-  const uuid = globalThis.crypto?.randomUUID?.();
+  const uuid = window.crypto?.randomUUID?.();
   return uuid ? `${prefix}-${uuid}` : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 

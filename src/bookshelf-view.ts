@@ -306,7 +306,7 @@ export class PavelEpubBookshelfView extends ItemView {
       const progress = body.createDiv({ cls: "pavel-epub-bookshelf-progress" });
       progress.createDiv({ cls: "pavel-epub-bookshelf-progress-track" })
         .createDiv({ cls: "pavel-epub-bookshelf-progress-value" })
-        .style.setProperty("width", percent(book.progress));
+        .setCssStyles({ width: percent(book.progress) });
       progress.createSpan({ text: percent(book.progress) });
       button.addEventListener("click", () => void this.plugin.openEpub(book.file));
       button.addEventListener("contextmenu", (event) => {
@@ -506,7 +506,7 @@ export class PavelEpubBookshelfView extends ItemView {
 
   private async deleteBook(file: TFile): Promise<void> {
     try {
-      await this.app.vault.trash(file, true);
+      await this.app.fileManager.trashFile(file);
       this.plugin.store.removeBook(file.path);
       new Notice("书籍文件已移入系统回收站");
     } catch (error) {

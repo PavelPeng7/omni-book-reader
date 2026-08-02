@@ -18,7 +18,7 @@ const removedElements = "script, iframe, frame, frameset, object, embed, applet"
 const urlAttributes = new Set(["href", "src", "xlink:href", "action", "formaction", "poster"]);
 
 function isDangerousUrl(value: string): boolean {
-  const normalized = value.replace(/[\u0000-\u0020]+/g, "").toLowerCase();
+  const normalized = Array.from(value, (character) => character.charCodeAt(0) <= 32 ? "" : character).join("").toLowerCase();
   return normalized.startsWith("javascript:")
     || normalized.startsWith("vbscript:")
     || normalized.startsWith("data:text/html")
