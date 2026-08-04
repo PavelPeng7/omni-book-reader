@@ -1644,15 +1644,23 @@ body.theme-dark .pavel-epub-bookshelf {
 
 /* Dedicated EPUB bookshelf entry */
 .pavel-epub-bookshelf-container .view-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 0;
   overflow: hidden;
   background: var(--pavel-botanical-paper, var(--background-primary));
 }
 
 .pavel-epub-bookshelf {
+  flex: 1 1 auto;
   height: 100%;
+  min-height: 0;
   padding: 22px 14px 28px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
+  touch-action: pan-y;
   color: var(--pavel-botanical-forest, var(--text-normal));
   background:
     radial-gradient(circle at 88% 4%, color-mix(in srgb, var(--pavel-botanical-sage, #87977f) 15%, transparent), transparent 28%),

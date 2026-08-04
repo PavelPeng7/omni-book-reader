@@ -308,7 +308,27 @@ export class PavelEpubBookshelfView extends ItemView {
         .createDiv({ cls: "pavel-epub-bookshelf-progress-value" })
         .setCssStyles({ width: percent(book.progress) });
       progress.createSpan({ text: percent(book.progress) });
-      button.addEventListener("click", () => void this.plugin.openEpub(book.file));
+      let touchStartY: number | null = null;
+      let didScroll = false;
+      button.addEventListener("pointerdown", (event) => {
+        if (event.pointerType !== "touch") return;
+        touchStartY = event.clientY;
+        didScroll = false;
+      });
+      button.addEventListener("pointermove", (event) => {
+        if (touchStartY === null || event.pointerType !== "touch") return;
+        if (Math.abs(event.clientY - touchStartY) > 8) didScroll = true;
+      });
+      button.addEventListener("pointercancel", () => { touchStartY = null; });
+      button.addEventListener("click", (event) => {
+        touchStartY = null;
+        if (didScroll) {
+          event.preventDefault();
+          didScroll = false;
+          return;
+        }
+        void this.plugin.openEpub(book.file);
+      });
       button.addEventListener("contextmenu", (event) => {
         event.preventDefault();
         this.openBookMenu(event, book);
