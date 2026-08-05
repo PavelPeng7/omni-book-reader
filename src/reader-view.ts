@@ -12,6 +12,7 @@ import {
 } from "obsidian";
 import type { AnnotationDocumentInput } from "./annotation-documents";
 import { exportChapterMarkdown } from "./chapter-export";
+import { readEpubBinaryCandidates } from "./epub-binary";
 import { extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
 import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
 import { installPublicationSanitizer } from "./sanitizer";
@@ -690,19 +691,35 @@ export class PavelEpubReaderView extends FileView {
     this.showLoading("正在读取 EPUB…");
 
     try {
-      const binary = await this.app.vault.readBinary(file);
+      const binaries = await readEpubBinaryCandidates(this.app.vault, file);
       if (generation !== this.loadGeneration) return;
-      const source = new File([binary], file.name, {
-        type: "application/epub+zip",
-        lastModified: file.stat.mtime,
-      });
+      let reader: FoliateViewElement | null = null;
+      let lastOpenError: unknown;
+      for (const binary of binaries) {
+        const source = new File([binary], file.name, {
+          type: "application/epub+zip",
+          lastModified: file.stat.mtime,
+        });
+        const candidate = document.createElement("foliate-view") as FoliateViewElement;
+        candidate.addClass("pavel-epub-foliate-view");
+        this.attachReaderEvents(candidate);
+        try {
+          await candidate.open(source);
+          reader = candidate;
+          break;
+        } catch (error) {
+          lastOpenError = error;
+          candidate.close?.();
+        }
+      }
+      if (!reader) throw lastOpenError ?? new Error("Unable to open EPUB payload");
+      if (generation !== this.loadGeneration) {
+        reader.close?.();
+        return;
+      }
       this.viewerEl.empty();
-      const reader = document.createElement("foliate-view") as FoliateViewElement;
-      reader.addClass("pavel-epub-foliate-view");
       this.viewerEl.append(reader);
       this.reader = reader;
-      this.attachReaderEvents(reader);
-      await reader.open(source);
       if (generation !== this.loadGeneration) return;
 
       this.cleanupCallbacks.push(installPublicationSanitizer(reader.book.transformTarget));
