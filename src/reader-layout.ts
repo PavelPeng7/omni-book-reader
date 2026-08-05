@@ -11,6 +11,30 @@ export function resolveContentWidth(requestedWidth: number, viewportWidth?: numb
   return Math.max(160, Math.min(requestedWidth, Math.floor(viewportWidth * 0.92)));
 }
 
+export function resolveWidthMode(
+  settings: Pick<ReaderSettings, "widthMode" | "contentWidth" | "pageMargin">,
+  viewportWidth?: number,
+): { contentWidth: number; pageMargin: number } {
+  const targets = {
+    standard: settings.contentWidth,
+    wide: Math.max(settings.contentWidth, 920),
+    full: 1200,
+    edge: viewportWidth ?? 1200,
+  } as const;
+  const viewportRatio = settings.widthMode === "standard" ? 0.92
+    : settings.widthMode === "wide" ? 0.96
+      : 1;
+  const available = viewportWidth && Number.isFinite(viewportWidth)
+    ? Math.max(160, Math.floor(viewportWidth * viewportRatio))
+    : undefined;
+  const contentWidth = available ? Math.min(targets[settings.widthMode], available) : targets[settings.widthMode];
+  const pageMargin = settings.widthMode === "edge" ? 0
+    : settings.widthMode === "full" ? Math.min(settings.pageMargin, 24)
+      : settings.widthMode === "wide" ? Math.min(settings.pageMargin, 40)
+        : settings.pageMargin;
+  return { contentWidth, pageMargin };
+}
+
 export function resolveViewportWidth(
   readingAreaWidth: number,
   viewerWidth: number,
@@ -31,9 +55,9 @@ export function applyReflowableLayout(
   settings: ReaderSettings,
   viewportWidth?: number,
 ): void {
-  const contentWidth = resolveContentWidth(settings.contentWidth, viewportWidth);
+  const { contentWidth, pageMargin } = resolveWidthMode(settings, viewportWidth);
   renderer.setAttribute("flow", settings.layout);
-  renderer.setAttribute("margin", `${settings.pageMargin}px`);
+  renderer.setAttribute("margin", `${pageMargin}px`);
   renderer.setAttribute("max-inline-size", `${contentWidth}px`);
   renderer.setAttribute("max-block-size", "1440px");
   renderer.setAttribute("max-column-count", "1");

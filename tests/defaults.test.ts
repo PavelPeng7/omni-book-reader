@@ -29,6 +29,7 @@ describe("reader settings", () => {
       lineHeight: 1.2,
       letterSpacing: 0.12,
       paragraphSpacing: 0,
+      widthMode: "standard",
       contentWidth: 1200,
       pageMargin: 0,
       exportTemplate: "classic",

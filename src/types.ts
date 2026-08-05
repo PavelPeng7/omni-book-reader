@@ -1,6 +1,7 @@
 export type ReaderTheme = "auto" | "light" | "dark" | "sepia";
 export type ReaderLayout = "paginated" | "scrolled";
 export type ReaderFont = "obsidian" | "publisher" | "serif" | "sans";
+export type ReaderWidthMode = "standard" | "wide" | "full" | "edge";
 export type HighlightColor = "yellow" | "green" | "blue" | "pink";
 export type HighlightStyle = "highlight" | "underline" | "strikethrough" | "squiggly";
 export type ExportTemplatePreset = "classic" | "compact" | "callout" | "custom";
@@ -13,6 +14,7 @@ export interface ReaderSettings {
   lineHeight: number;
   letterSpacing: number;
   paragraphSpacing: number;
+  widthMode: ReaderWidthMode;
   contentWidth: number;
   pageMargin: number;
   exportTemplate: ExportTemplatePreset;
@@ -105,6 +107,7 @@ export interface FoliateBook {
   dir?: "ltr" | "rtl";
   rendition?: { layout?: string };
   transformTarget?: EventTarget;
+  getCover?: () => Promise<Blob | null>;
   destroy?: () => void;
   sections?: Array<{ unload?: () => void }>;
 }

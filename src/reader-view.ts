@@ -13,8 +13,10 @@ import {
 import type { AnnotationDocumentInput } from "./annotation-documents";
 import { exportChapterMarkdown } from "./chapter-export";
 import { readEpubBinaryCandidates } from "./epub-binary";
+import { extractEpubCover } from "./epub-cover";
 import { extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
 import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
+import { mobilePageTurnDirection } from "./mobile-input";
 import { installPublicationSanitizer } from "./sanitizer";
 import { SearchSession } from "./search-session";
 import { ReaderSettingsModal, type SettingsHost } from "./settings-ui";
@@ -339,6 +341,8 @@ export class PavelEpubReaderView extends FileView {
   private readingStatsEl: HTMLElement | null = null;
   private bookmarkButton: HTMLButtonElement | null = null;
   private focusButton: HTMLButtonElement | null = null;
+  private quickSettingsButton: HTMLButtonElement | null = null;
+  private quickSettingsEl: HTMLElement | null = null;
   private selectionToolbarEl: HTMLElement | null = null;
   private searchInputEl: HTMLInputElement | null = null;
   private searchStatusEl: HTMLElement | null = null;
@@ -346,7 +350,15 @@ export class PavelEpubReaderView extends FileView {
   private tocPanelEl: HTMLElement | null = null;
   private bookmarkPanelEl: HTMLElement | null = null;
   private highlightPanelEl: HTMLElement | null = null;
+  private sidebarBookTitleEl: HTMLElement | null = null;
+  private sidebarBookAuthorEl: HTMLElement | null = null;
+  private sidebarCoverMarkEl: HTMLElement | null = null;
+  private sidebarCoverEl: HTMLElement | null = null;
+  private sidebarCoverUrl: string | null = null;
+  private sidebarProgressEl: HTMLInputElement | null = null;
+  private sidebarProgressTextEl: HTMLElement | null = null;
   private tabButtons = new Map<SidebarTab, HTMLButtonElement>();
+  private tabCountEls = new Map<SidebarTab, HTMLElement>();
   private tabPanels = new Map<SidebarTab, HTMLElement>();
   private tocLinks = new Map<string, HTMLButtonElement>();
   private reader: FoliateViewElement | null = null;
@@ -363,12 +375,15 @@ export class PavelEpubReaderView extends FileView {
   private sidebarOpen = !Platform.isMobile;
   private activeTab: SidebarTab = "toc";
   private searchTimer: number | null = null;
+  private selectionClearTimer: number | null = null;
   private progressTimer: number | null = null;
   private statsTimer: number | null = null;
   private statsLastTick = 0;
   private statsLastActivity = 0;
   private sessionReadingMs = 0;
   private focusMode = false;
+  private quickSettingsOpen = false;
+  private ownsFullscreen = false;
   private sidebarOpenBeforeFocus = false;
   private loadGeneration = 0;
   private cleanupCallbacks: Array<() => void> = [];
@@ -407,6 +422,7 @@ export class PavelEpubReaderView extends FileView {
   async onOpen(): Promise<void> {
     this.buildShell();
     this.registerDomEvent(document, "keydown", (event: KeyboardEvent) => this.handleMobileHardwareKey(event), true);
+    this.registerDomEvent(document, "fullscreenchange", () => this.handleFullscreenChange());
     this.themeObserver = new MutationObserver(() => this.applySettings());
     this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
     if (this.file) await this.loadBook(this.file);
@@ -437,6 +453,7 @@ export class PavelEpubReaderView extends FileView {
   applySettings(): void {
     const settings = this.plugin.getReaderSettings();
     this.rootEl?.setAttribute("data-reader-theme", settings.theme);
+    this.rootEl?.setAttribute("data-width-mode", settings.widthMode);
     if (!this.reader) return;
     const renderer = this.reader.renderer;
     if (!renderer) return;
@@ -522,7 +539,7 @@ export class PavelEpubReaderView extends FileView {
   private buildShell(): void {
     this.contentEl.empty();
     this.contentEl.addClass("pavel-epub-view-content");
-    const root = this.contentEl.createDiv({ cls: "pavel-epub-reader" });
+    const root = this.contentEl.createDiv({ cls: "pavel-epub-reader", attr: { tabindex: "-1" } });
     this.rootEl = root;
 
     const header = root.createDiv({ cls: "pavel-epub-header" });
@@ -534,7 +551,6 @@ export class PavelEpubReaderView extends FileView {
     const headerActions = header.createDiv({ cls: "pavel-epub-header-actions" });
     const search = iconButton(headerActions, "search", "搜索当前书籍");
     search.addEventListener("click", () => {
-      this.activateTab("search");
       this.setSidebarOpen(true);
       window.setTimeout(() => this.searchInputEl?.focus(), 0);
     });
@@ -545,9 +561,16 @@ export class PavelEpubReaderView extends FileView {
     const stats = iconButton(headerActions, "chart-no-axes-column-increasing", "阅读统计");
     stats.addEventListener("click", () => this.openReadingStats());
     this.focusButton = iconButton(headerActions, "maximize", "沉浸式阅读");
-    this.focusButton.addEventListener("click", () => this.toggleFocusMode());
-    const settings = iconButton(headerActions, "settings-2", "阅读设置");
-    settings.addEventListener("click", () => new ReaderSettingsModal(this.app, this.plugin, this.fixedLayout).open());
+    this.focusButton.addEventListener("click", () => void this.toggleFocusMode());
+    this.quickSettingsButton = iconButton(root, "sliders-horizontal", "阅读排版");
+    this.quickSettingsButton.addClass("pavel-epub-quick-settings-toggle");
+    this.quickSettingsButton.setAttribute("aria-expanded", "false");
+    this.quickSettingsButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.toggleQuickSettings();
+    });
+    this.quickSettingsEl = this.buildQuickSettings(root);
 
     const body = root.createDiv({ cls: "pavel-epub-body" });
     this.sidebarEl = this.buildSidebar(body);
@@ -570,13 +593,25 @@ export class PavelEpubReaderView extends FileView {
       attr: { type: "button", "aria-label": "退出沉浸式阅读", title: "退出沉浸式阅读" },
     });
     setIcon(immersiveExit, "arrow-left");
-    immersiveExit.addEventListener("click", () => this.toggleFocusMode(false));
+    immersiveExit.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void this.toggleFocusMode(false);
+    });
     const immersiveFooter = readingArea.createDiv({ cls: "pavel-epub-immersive-footer", attr: { "aria-label": "沉浸式阅读翻页" } });
     const immersivePrevious = immersiveFooter.createEl("button", { text: "← 上一页", attr: { type: "button" } });
-    immersivePrevious.addEventListener("click", () => void this.reader?.goLeft());
+    immersivePrevious.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void this.reader?.goLeft();
+    });
     this.immersiveLocationEl = immersiveFooter.createSpan({ text: "正在定位" });
     const immersiveNext = immersiveFooter.createEl("button", { text: "下一页 →", attr: { type: "button" } });
-    immersiveNext.addEventListener("click", () => void this.reader?.goRight());
+    immersiveNext.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void this.reader?.goRight();
+    });
 
     const footer = root.createDiv({ cls: "pavel-epub-footer" });
     this.progressTextEl = footer.createSpan({ cls: "pavel-epub-progress-text", text: "0%" });
@@ -639,19 +674,145 @@ export class PavelEpubReaderView extends FileView {
     this.applySettings();
   }
 
+  private buildQuickSettings(parent: HTMLElement): HTMLElement {
+    const panel = parent.createDiv({ cls: "pavel-epub-quick-settings", attr: { "aria-label": "阅读排版", role: "dialog" } });
+    const header = panel.createDiv({ cls: "pavel-epub-quick-settings-header" });
+    header.createDiv({ cls: "pavel-epub-quick-settings-title", text: "阅读排版" });
+    const close = iconButton(header, "x", "关闭阅读排版");
+    close.addEventListener("click", () => this.toggleQuickSettings(false));
+
+    const addRange = (
+      label: string,
+      min: number,
+      max: number,
+      step: number,
+      read: () => number,
+      format: (value: number) => string,
+      update: (value: number) => void,
+    ): void => {
+      const row = panel.createDiv({ cls: "pavel-epub-quick-range" });
+      const heading = row.createDiv({ cls: "pavel-epub-quick-range-heading" });
+      heading.createSpan({ text: label });
+      const valueEl = heading.createSpan({ cls: "pavel-epub-quick-value", text: format(read()) });
+      const input = row.createEl("input", {
+        type: "range",
+        attr: { min: String(min), max: String(max), step: String(step), value: String(read()), "aria-label": label },
+      });
+      input.disabled = this.fixedLayout;
+      input.addEventListener("input", () => {
+        const value = Number(input.value);
+        valueEl.setText(format(value));
+        update(value);
+      });
+    };
+    const get = (): ReaderSettings => this.plugin.getReaderSettings();
+    addRange("字号", 80, 180, 5, () => get().fontSizePercent, (value) => `${value}%`, (fontSizePercent) => this.plugin.updateReaderSettings({ fontSizePercent }));
+    addRange("行高", 1.2, 2.2, 0.05, () => get().lineHeight, (value) => value.toFixed(2), (lineHeight) => this.plugin.updateReaderSettings({ lineHeight }));
+    addRange("字距", -0.02, 0.12, 0.01, () => get().letterSpacing, (value) => `${value >= 0 ? "+" : ""}${value.toFixed(2)}`, (letterSpacing) => this.plugin.updateReaderSettings({ letterSpacing }));
+    addRange("段落间距", 0, 1.2, 0.05, () => get().paragraphSpacing, (value) => value.toFixed(2), (paragraphSpacing) => this.plugin.updateReaderSettings({ paragraphSpacing }));
+    addRange("页边距", 0, 80, 4, () => get().pageMargin, (value) => String(value), (pageMargin) => this.plugin.updateReaderSettings({ pageMargin }));
+    const layout = panel.createDiv({ cls: "pavel-epub-quick-segments", attr: { role: "group", "aria-label": "阅读布局" } });
+    layout.createSpan({ text: "布局" });
+    for (const [value, label] of [["paginated", "翻页"], ["scrolled", "滚动"]] as const) {
+      const button = layout.createEl("button", { text: label, attr: { type: "button" } });
+      button.toggleClass("is-active", get().layout === value);
+      button.disabled = this.fixedLayout;
+      button.addEventListener("click", () => {
+        this.plugin.updateReaderSettings({ layout: value });
+        for (const candidate of Array.from(layout.querySelectorAll("button"))) candidate.toggleClass("is-active", candidate === button);
+      });
+    }
+
+    const width = panel.createDiv({ cls: "pavel-epub-quick-segments is-width-mode", attr: { role: "group", "aria-label": "页面宽度" } });
+    width.createSpan({ text: "页面宽度" });
+    for (const [value, label] of [["standard", "标准"], ["wide", "宽版"], ["full", "全宽"], ["edge", "贴边"]] as const) {
+      const button = width.createEl("button", { text: label, attr: { type: "button" } });
+      button.toggleClass("is-active", get().widthMode === value);
+      button.disabled = this.fixedLayout;
+      button.addEventListener("click", () => {
+        this.plugin.updateReaderSettings({ widthMode: value });
+        for (const candidate of Array.from(width.querySelectorAll("button"))) candidate.toggleClass("is-active", candidate === button);
+      });
+    }
+
+    const actions = panel.createDiv({ cls: "pavel-epub-quick-settings-actions" });
+    const full = actions.createEl("button", { text: "完整设置", attr: { type: "button" } });
+    full.addEventListener("click", () => new ReaderSettingsModal(this.app, this.plugin, this.fixedLayout).open());
+    const reset = actions.createEl("button", { text: "恢复默认", attr: { type: "button" } });
+    reset.addEventListener("click", () => {
+      this.plugin.updateReaderSettings({
+        font: "obsidian",
+        fontSizePercent: 100,
+        lineHeight: 1.7,
+        letterSpacing: 0.01,
+        paragraphSpacing: 0.65,
+        widthMode: "standard",
+        contentWidth: 720,
+        pageMargin: 48,
+      });
+      this.quickSettingsEl?.remove();
+      this.quickSettingsEl = this.buildQuickSettings(parent);
+      this.quickSettingsEl.addClass("is-open");
+    });
+    return panel;
+  }
+
+  private toggleQuickSettings(force?: boolean): void {
+    this.quickSettingsOpen = force ?? !this.quickSettingsOpen;
+    this.quickSettingsEl?.toggleClass("is-open", this.quickSettingsOpen);
+    this.quickSettingsButton?.toggleClass("is-active", this.quickSettingsOpen);
+    this.quickSettingsButton?.setAttribute("aria-expanded", String(this.quickSettingsOpen));
+  }
+
   private buildSidebar(parent: HTMLElement): HTMLElement {
     const sidebar = parent.createEl("aside", { cls: "pavel-epub-sidebar", attr: { "aria-label": "OmniReader 阅读侧栏" } });
+    const bookHeader = sidebar.createDiv({ cls: "pavel-epub-sidebar-book" });
+    const cover = bookHeader.createDiv({ cls: "pavel-epub-sidebar-cover" });
+    this.sidebarCoverEl = cover;
+    setIcon(cover, "book-open");
+    this.sidebarCoverMarkEl = cover.createSpan({ text: "O" });
+    const identity = bookHeader.createDiv({ cls: "pavel-epub-sidebar-identity" });
+    this.sidebarBookTitleEl = identity.createDiv({ cls: "pavel-epub-sidebar-book-title", text: "OmniReader" });
+    this.sidebarBookAuthorEl = identity.createDiv({ cls: "pavel-epub-sidebar-book-author", text: "正在载入书籍信息…" });
+    const progressRow = identity.createDiv({ cls: "pavel-epub-sidebar-progress-row" });
+    this.sidebarProgressEl = progressRow.createEl("input", {
+      cls: "pavel-epub-sidebar-progress",
+      type: "range",
+      attr: { min: "0", max: "1", step: "0.001", value: "0", "aria-label": "跳转阅读进度" },
+    });
+    this.sidebarProgressTextEl = progressRow.createSpan({ cls: "pavel-epub-sidebar-progress-text", text: "0%" });
+    this.sidebarProgressEl.addEventListener("input", () => {
+      this.sidebarProgressTextEl?.setText(percentage(Number(this.sidebarProgressEl?.value ?? 0)));
+    });
+    this.sidebarProgressEl.addEventListener("change", () => {
+      if (this.sidebarProgressEl) void this.reader?.goToFraction(Number(this.sidebarProgressEl.value));
+    });
+
+    const searchBox = sidebar.createDiv({ cls: "pavel-epub-sidebar-search" });
+    const searchIcon = searchBox.createSpan();
+    setIcon(searchIcon, "search");
+    this.searchInputEl = searchBox.createEl("input", {
+      type: "search",
+      attr: { placeholder: "搜索正文…", "aria-label": "搜索当前书籍正文" },
+    });
+    this.searchInputEl.addEventListener("input", () => {
+      this.activateTab(this.searchInputEl?.value.trim() ? "search" : "toc");
+      this.scheduleSearch();
+    });
+
     const tabs = sidebar.createDiv({ cls: "pavel-epub-tabs", attr: { role: "tablist" } });
     const definitions: Array<[SidebarTab, string, string]> = [
       ["toc", "list-tree", "目录"],
-      ["search", "search", "搜索"],
+      ["highlights", "highlighter", "摘录"],
       ["bookmarks", "bookmark", "书签"],
-      ["highlights", "highlighter", "高亮"],
     ];
     for (const [tab, icon, label] of definitions) {
       const button = iconButton(tabs, icon, label);
       button.addClass("pavel-epub-tab");
       button.setAttribute("role", "tab");
+      button.createSpan({ cls: "pavel-epub-tab-label", text: label });
+      const count = button.createSpan({ cls: "pavel-epub-tab-count", text: "0" });
+      this.tabCountEls.set(tab, count);
       button.addEventListener("click", () => this.activateTab(tab));
       this.tabButtons.set(tab, button);
     }
@@ -662,12 +823,6 @@ export class PavelEpubReaderView extends FileView {
     const panels = sidebar.createDiv({ cls: "pavel-epub-panels" });
     this.tocPanelEl = this.createPanel(panels, "toc");
     const searchPanel = this.createPanel(panels, "search");
-    const searchBox = searchPanel.createDiv({ cls: "pavel-epub-search-box" });
-    this.searchInputEl = searchBox.createEl("input", {
-      type: "search",
-      attr: { placeholder: "搜索当前书籍…", "aria-label": "搜索当前书籍" },
-    });
-    this.searchInputEl.addEventListener("input", () => this.scheduleSearch());
     this.searchStatusEl = searchPanel.createDiv({ cls: "pavel-epub-search-status", text: "输入关键词开始搜索" });
     this.searchResultsEl = searchPanel.createDiv({ cls: "pavel-epub-search-results" });
     this.bookmarkPanelEl = this.createPanel(panels, "bookmarks");
@@ -694,6 +849,7 @@ export class PavelEpubReaderView extends FileView {
       const binaries = await readEpubBinaryCandidates(this.app.vault, file);
       if (generation !== this.loadGeneration) return;
       let reader: FoliateViewElement | null = null;
+      let openedSource: File | null = null;
       let lastOpenError: unknown;
       for (const binary of binaries) {
         const source = new File([binary], file.name, {
@@ -706,6 +862,7 @@ export class PavelEpubReaderView extends FileView {
         try {
           await candidate.open(source);
           reader = candidate;
+          openedSource = source;
           break;
         } catch (error) {
           lastOpenError = error;
@@ -729,6 +886,10 @@ export class PavelEpubReaderView extends FileView {
       this.bookTitle = formatLanguageValue(reader.book.metadata?.title) || file.basename;
       this.bookAuthor = formatLanguageValue(reader.book.metadata?.author);
       this.titleEl?.setText(this.bookTitle);
+      this.sidebarBookTitleEl?.setText(this.bookTitle);
+      this.sidebarBookAuthorEl?.setText(this.bookAuthor || "作者信息未提供");
+      this.sidebarCoverMarkEl?.setText(Array.from(this.bookTitle.trim())[0]?.toLocaleUpperCase("zh-CN") ?? "O");
+      if (openedSource) void this.loadSidebarCover(reader, openedSource, generation);
       this.chapterEl?.setText("正在定位…");
       this.renderToc(reader.book.toc ?? []);
       this.renderBookmarks();
@@ -747,6 +908,42 @@ export class PavelEpubReaderView extends FileView {
       if (generation !== this.loadGeneration) return;
       console.error("[OmniReader] Failed to open book", error);
       this.showLoadError(file, error);
+    }
+  }
+
+  private async loadSidebarCover(reader: FoliateViewElement, source: File, generation: number): Promise<void> {
+    const coverEl = this.sidebarCoverEl;
+    if (!coverEl) return;
+    coverEl.removeClass("has-image");
+    coverEl.querySelector("img")?.remove();
+    if (this.sidebarCoverUrl) URL.revokeObjectURL(this.sidebarCoverUrl);
+    this.sidebarCoverUrl = null;
+    try {
+      // Reuse the bookshelf's validated EPUB cover pipeline. It calls the
+      // publication getCover() API first, then resolves XHTML cover pages.
+      let blob = await extractEpubCover(source);
+      if (!blob?.size) blob = await reader.book.getCover?.() ?? null;
+      if (!blob?.size || generation !== this.loadGeneration || !coverEl.isConnected) return;
+      const url = URL.createObjectURL(blob);
+      this.sidebarCoverUrl = url;
+      const image = document.createElement("img");
+      image.alt = `${this.bookTitle} 封面`;
+      image.decoding = "async";
+      image.src = url;
+      image.addEventListener("load", () => {
+        if (generation === this.loadGeneration && image.isConnected) coverEl.addClass("has-image");
+      }, { once: true });
+      image.addEventListener("error", () => {
+        image.remove();
+        coverEl.removeClass("has-image");
+        if (this.sidebarCoverUrl === url) {
+          URL.revokeObjectURL(url);
+          this.sidebarCoverUrl = null;
+        }
+      }, { once: true });
+      coverEl.append(image);
+    } catch (error) {
+      console.warn("[OmniReader] Could not load reader sidebar cover", error);
     }
   }
 
@@ -846,14 +1043,32 @@ export class PavelEpubReaderView extends FileView {
   }
 
   private attachDocumentEvents(document: Document, sectionIndex: number): void {
+    let selectionFrame: number | null = null;
+    let selectionRetry: number | null = null;
+    const capture = (): void => {
+      if (selectionFrame !== null) window.cancelAnimationFrame(selectionFrame);
+      selectionFrame = window.requestAnimationFrame(() => {
+        selectionFrame = null;
+        this.captureSelection(document, sectionIndex);
+      });
+    };
     const pointerUp = (): void => {
       this.noteReadingActivity();
-      window.setTimeout(() => this.captureSelection(document, sectionIndex), 0);
+      capture();
+    };
+    const touchEnd = (): void => {
+      this.noteReadingActivity();
+      capture();
+      if (selectionRetry !== null) window.clearTimeout(selectionRetry);
+      selectionRetry = window.setTimeout(() => {
+        selectionRetry = null;
+        capture();
+      }, 140);
     };
     const keyUp = (event: KeyboardEvent): void => {
       this.noteReadingActivity();
       this.handleKeydown(event);
-      window.setTimeout(() => this.captureSelection(document, sectionIndex), 0);
+      capture();
     };
     const wheel = (event: WheelEvent): void => this.handleWheel(event);
     const click = (event: MouseEvent): void => {
@@ -868,11 +1083,19 @@ export class PavelEpubReaderView extends FileView {
       this.openImagePreview(source, image.getAttribute("alt") ?? "");
     };
     document.addEventListener("pointerup", pointerUp);
+    document.addEventListener("mouseup", capture);
+    document.addEventListener("touchend", touchEnd, { passive: true });
+    document.addEventListener("selectionchange", capture);
     document.addEventListener("keyup", keyUp);
     document.addEventListener("wheel", wheel, { passive: false });
     document.addEventListener("click", click, true);
     this.cleanupCallbacks.push(() => {
+      if (selectionFrame !== null) window.cancelAnimationFrame(selectionFrame);
+      if (selectionRetry !== null) window.clearTimeout(selectionRetry);
       document.removeEventListener("pointerup", pointerUp);
+      document.removeEventListener("mouseup", capture);
+      document.removeEventListener("touchend", touchEnd);
+      document.removeEventListener("selectionchange", capture);
       document.removeEventListener("keyup", keyUp);
       document.removeEventListener("wheel", wheel);
       document.removeEventListener("click", click, true);
@@ -931,27 +1154,68 @@ export class PavelEpubReaderView extends FileView {
     }).open();
   }
 
-  toggleFocusMode(force?: boolean): void {
+  async toggleFocusMode(force?: boolean): Promise<void> {
     const enabled = force ?? !this.focusMode;
     if (enabled === this.focusMode) return;
     this.focusMode = enabled;
     this.rootEl?.toggleClass("is-focus-mode", enabled);
     this.focusButton?.toggleClass("is-active", enabled);
+    document.body.classList.toggle("pavel-epub-immersive-mode", enabled);
+    document.documentElement.classList.toggle("pavel-epub-immersive-mode", enabled);
     if (!enabled) {
       this.setSidebarOpen(this.sidebarOpenBeforeFocus);
+      if (this.ownsFullscreen && document.fullscreenElement) {
+        this.ownsFullscreen = false;
+        try { await document.exitFullscreen?.(); }
+        catch (error) { console.warn("[OmniReader] Could not exit fullscreen", error); }
+      }
+      window.requestAnimationFrame(() => this.applySettings());
       return;
     }
     this.sidebarOpenBeforeFocus = this.sidebarOpen;
     this.setSidebarOpen(false);
+    this.rootEl?.focus({ preventScroll: true });
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.();
+      this.ownsFullscreen = document.fullscreenElement === document.documentElement;
+    } catch (error) {
+      this.ownsFullscreen = false;
+      console.warn("[OmniReader] Fullscreen API unavailable; using immersive overlay", error);
+    }
+    window.requestAnimationFrame(() => this.applySettings());
+  }
+
+  private handleFullscreenChange(): void {
+    if (!document.fullscreenElement && this.focusMode && this.ownsFullscreen) {
+      this.ownsFullscreen = false;
+      this.focusMode = false;
+      this.rootEl?.removeClass("is-focus-mode");
+      this.focusButton?.removeClass("is-active");
+      document.body.classList.remove("pavel-epub-immersive-mode");
+      document.documentElement.classList.remove("pavel-epub-immersive-mode");
+      this.setSidebarOpen(this.sidebarOpenBeforeFocus);
+    }
+    window.requestAnimationFrame(() => this.applySettings());
   }
 
   private captureSelection(document: Document, sectionIndex: number): void {
     if (!this.reader) return;
-    const selection = document.defaultView?.getSelection();
+    const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      this.clearPendingSelection(false);
+      if (this.pendingSelection) {
+        if (this.selectionClearTimer !== null) window.clearTimeout(this.selectionClearTimer);
+        this.selectionClearTimer = window.setTimeout(() => {
+          this.selectionClearTimer = null;
+          const current = document.defaultView?.getSelection?.() ?? document.getSelection?.();
+          if (!current || current.rangeCount === 0 || current.isCollapsed) this.clearPendingSelection(false);
+        }, 300);
+      } else {
+        this.clearPendingSelection(false);
+      }
       return;
     }
+    if (this.selectionClearTimer !== null) window.clearTimeout(this.selectionClearTimer);
+    this.selectionClearTimer = null;
     const text = selection.toString().replace(/\s+/g, " ").trim();
     if (!text) return;
     if (text.length > 10000) {
@@ -1065,6 +1329,8 @@ export class PavelEpubReaderView extends FileView {
   }
 
   private clearPendingSelection(clearNative = true): void {
+    if (this.selectionClearTimer !== null) window.clearTimeout(this.selectionClearTimer);
+    this.selectionClearTimer = null;
     if (clearNative) {
       try {
         this.pendingSelection?.selection.removeAllRanges();
@@ -1083,6 +1349,8 @@ export class PavelEpubReaderView extends FileView {
     const fraction = location.fraction ?? 0;
     if (this.progressEl) this.progressEl.value = String(fraction);
     this.progressTextEl?.setText(percentage(fraction));
+    if (this.sidebarProgressEl) this.sidebarProgressEl.value = String(fraction);
+    this.sidebarProgressTextEl?.setText(percentage(fraction));
     const chapter = this.currentChapter();
     this.chapterEl?.setText(chapter);
     const page = formatLanguageValue(location.pageItem?.label);
@@ -1185,19 +1453,25 @@ export class PavelEpubReaderView extends FileView {
     if (!this.tocPanelEl) return;
     this.tocPanelEl.empty();
     this.tocLinks.clear();
+    const countItems = (entries: FoliateTocItem[]): number => entries.reduce((total, item) => total + 1 + countItems(item.subitems ?? []), 0);
+    this.tabCountEls.get("toc")?.setText(String(countItems(items)));
     if (!items.length) {
       this.tocPanelEl.createDiv({ cls: "pavel-epub-empty", text: "此书没有可用目录" });
       return;
     }
-    this.renderTocLevel(this.tocPanelEl, items);
+    this.renderTocLevel(this.tocPanelEl, items, 0);
   }
 
-  private renderTocLevel(parent: HTMLElement, items: FoliateTocItem[]): void {
+  private renderTocLevel(parent: HTMLElement, items: FoliateTocItem[], depth: number): void {
     const list = parent.createEl("ul", { cls: "pavel-epub-toc-list" });
     for (const item of items) {
       const row = list.createEl("li");
       const label = formatLanguageValue(item.label) || "未命名章节";
-      const button = row.createEl("button", { cls: "pavel-epub-list-button", text: label, attr: { type: "button" } });
+      const button = row.createEl("button", { cls: "pavel-epub-list-button", attr: { type: "button", "data-depth": String(depth) } });
+      button.createSpan({ cls: "pavel-epub-toc-dot", attr: { "aria-hidden": "true" } });
+      button.createSpan({ cls: "pavel-epub-toc-label", text: label });
+      const marker = button.createSpan({ cls: "pavel-epub-toc-current-marker", text: "当前" });
+      marker.setAttribute("aria-hidden", "true");
       if (item.href) {
         this.tocLinks.set(item.href, button);
         button.addEventListener("click", () => {
@@ -1207,19 +1481,32 @@ export class PavelEpubReaderView extends FileView {
       } else {
         button.disabled = true;
       }
-      if (item.subitems?.length) this.renderTocLevel(row, item.subitems);
+      if (item.subitems?.length) {
+        row.addClass("has-children");
+        this.renderTocLevel(row, item.subitems, depth + 1);
+      }
     }
   }
 
   private updateCurrentToc(href: string | undefined): void {
-    for (const button of this.tocLinks.values()) button.removeClass("is-current");
-    if (href) this.tocLinks.get(href)?.addClass("is-current");
+    for (const button of this.tocLinks.values()) {
+      button.removeClass("is-current");
+      button.closest("li")?.classList.remove("has-current-child");
+    }
+    const current = href ? this.tocLinks.get(href) : undefined;
+    current?.addClass("is-current");
+    let ancestor = current?.closest("li")?.parentElement?.closest("li");
+    while (ancestor) {
+      ancestor.classList.add("has-current-child");
+      ancestor = ancestor.parentElement?.closest("li") ?? null;
+    }
   }
 
   private renderBookmarks(): void {
     if (!this.bookmarkPanelEl) return;
     this.bookmarkPanelEl.empty();
     const items = this.bookState?.bookmarks ?? [];
+    this.tabCountEls.get("bookmarks")?.setText(String(items.length));
     if (!items.length) {
       this.bookmarkPanelEl.createDiv({ cls: "pavel-epub-empty", text: "还没有书签" });
       return;
@@ -1247,6 +1534,7 @@ export class PavelEpubReaderView extends FileView {
     if (!this.highlightPanelEl) return;
     this.highlightPanelEl.empty();
     const items = this.bookState?.highlights ?? [];
+    this.tabCountEls.get("highlights")?.setText(String(items.length));
     const documents = this.bookState?.annotationDocuments;
     if (documents) {
       const actions = this.highlightPanelEl.createDiv({ cls: "pavel-epub-document-actions" });
@@ -1471,10 +1759,12 @@ export class PavelEpubReaderView extends FileView {
   }
 
   private handleKeydown(event: KeyboardEvent): void {
+    if (event.defaultPrevented) return;
     if (isEditableTarget(event.target)) return;
     if (event.key === "Escape") {
-      if (this.pendingSelection) this.clearPendingSelection();
-      else if (this.focusMode) this.toggleFocusMode(false);
+      if (this.quickSettingsOpen) this.toggleQuickSettings(false);
+      else if (this.pendingSelection) this.clearPendingSelection();
+      else if (this.focusMode) void this.toggleFocusMode(false);
       else if (Platform.isMobile && this.sidebarOpen) this.setSidebarOpen(false);
       return;
     }
@@ -1518,14 +1808,14 @@ export class PavelEpubReaderView extends FileView {
 
   private handleMobileHardwareKey(event: KeyboardEvent): void {
     if (!Platform.isMobile || !this.reader || event.repeat || isEditableTarget(event.target)) return;
-    if (this.app.workspace.getActiveViewOfType(PavelEpubReaderView) !== this) return;
-    const previous = event.key === "AudioVolumeUp" || event.key === "VolumeUp" || event.code === "AudioVolumeUp";
-    const next = event.key === "AudioVolumeDown" || event.key === "VolumeDown" || event.code === "AudioVolumeDown";
-    if (!previous && !next) return;
+    if (!this.focusMode && this.app.workspace.getActiveViewOfType(PavelEpubReaderView) !== this) return;
+    const direction = mobilePageTurnDirection(event);
+    if (!direction) return;
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
+    event.stopImmediatePropagation();
     this.noteReadingActivity();
-    void (next ? this.reader.goRight() : this.reader.goLeft());
+    void (direction === "next" ? this.reader.goRight() : this.reader.goLeft());
   }
 
   private showLoading(message: string): void {
@@ -1563,7 +1853,11 @@ export class PavelEpubReaderView extends FileView {
     this.searchTimer = null;
     this.progressTimer = null;
     this.clearPendingSelection(false);
-    this.toggleFocusMode(false);
+    if (this.sidebarCoverUrl) URL.revokeObjectURL(this.sidebarCoverUrl);
+    this.sidebarCoverUrl = null;
+    this.sidebarCoverEl?.removeClass("has-image");
+    this.sidebarCoverEl?.querySelector("img")?.remove();
+    await this.toggleFocusMode(false);
     for (const cleanup of this.cleanupCallbacks.splice(0)) {
       try { cleanup(); } catch { /* Ignore cleanup races. */ }
     }

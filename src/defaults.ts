@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   lineHeight: 1.7,
   letterSpacing: 0.01,
   paragraphSpacing: 0.65,
+  widthMode: "standard",
   contentWidth: 720,
   pageMargin: 48,
   exportTemplate: "classic",
@@ -17,6 +18,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
 const themes = new Set(["auto", "light", "dark", "sepia"]);
 const layouts = new Set(["paginated", "scrolled"]);
 const fonts = new Set(["obsidian", "publisher", "serif", "sans"]);
+const widthModes = new Set(["standard", "wide", "full", "edge"]);
 const exportTemplates = new Set(["classic", "compact", "callout", "custom"]);
 
 const clamp = (value: unknown, min: number, max: number, fallback: number): number => {
@@ -34,6 +36,9 @@ export function normalizeSettings(value: unknown): ReaderSettings {
     lineHeight: Math.round(clamp(input.lineHeight, 1.2, 2.2, DEFAULT_SETTINGS.lineHeight) * 10) / 10,
     letterSpacing: Math.round(clamp(input.letterSpacing, -0.02, 0.12, DEFAULT_SETTINGS.letterSpacing) * 100) / 100,
     paragraphSpacing: Math.round(clamp(input.paragraphSpacing, 0, 1.2, DEFAULT_SETTINGS.paragraphSpacing) * 20) / 20,
+    widthMode: widthModes.has(String(input.widthMode))
+      ? input.widthMode as ReaderSettings["widthMode"]
+      : DEFAULT_SETTINGS.widthMode,
     contentWidth: Math.round(clamp(input.contentWidth, 480, 1200, DEFAULT_SETTINGS.contentWidth)),
     pageMargin: Math.round(clamp(input.pageMargin, 0, 80, DEFAULT_SETTINGS.pageMargin)),
     exportTemplate: exportTemplates.has(String(input.exportTemplate))

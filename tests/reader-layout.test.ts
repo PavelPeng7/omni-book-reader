@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/defaults";
-import { applyReflowableLayout, resolveContentWidth, resolveViewportWidth } from "../src/reader-layout";
+import { applyReflowableLayout, resolveContentWidth, resolveViewportWidth, resolveWidthMode } from "../src/reader-layout";
 
 describe("reflowable reader layout", () => {
   it("uses a centered single page in wide paginated views", () => {
@@ -38,5 +38,12 @@ describe("reflowable reader layout", () => {
     expect(resolveViewportWidth(715, 615, false)).toBe(583);
     expect(resolveViewportWidth(1200, 1080, false)).toBe(1068);
     expect(resolveViewportWidth(0, 0, false)).toBeUndefined();
+  });
+
+  it("maps semantic page widths to clean responsive layouts", () => {
+    expect(resolveWidthMode({ ...DEFAULT_SETTINGS, widthMode: "standard" }, 1000)).toEqual({ contentWidth: 720, pageMargin: 48 });
+    expect(resolveWidthMode({ ...DEFAULT_SETTINGS, widthMode: "wide" }, 1000)).toEqual({ contentWidth: 920, pageMargin: 40 });
+    expect(resolveWidthMode({ ...DEFAULT_SETTINGS, widthMode: "full" }, 1000)).toEqual({ contentWidth: 1000, pageMargin: 24 });
+    expect(resolveWidthMode({ ...DEFAULT_SETTINGS, widthMode: "edge" }, 1000)).toEqual({ contentWidth: 1000, pageMargin: 0 });
   });
 });

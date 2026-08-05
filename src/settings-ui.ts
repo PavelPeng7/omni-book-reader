@@ -79,13 +79,13 @@ function renderSettings(
       .onChange((paragraphSpacing) => host.updateReaderSettings({ paragraphSpacing })));
 
   new Setting(container)
-    .setName("正文宽度")
-    .setDesc(`${get().contentWidth}px`)
-    .addSlider((slider) => slider
-      .setLimits(480, 1200, 20)
-      .setValue(get().contentWidth)
+    .setName("页面宽度")
+    .setDesc("标准适合长文；宽版和全宽增加横向空间；贴边会移除书页边距。")
+    .addDropdown((dropdown) => dropdown
+      .addOptions({ standard: "标准", wide: "宽版", full: "全宽", edge: "贴边" })
+      .setValue(get().widthMode)
       .setDisabled(fixedLayout)
-      .onChange((contentWidth) => host.updateReaderSettings({ contentWidth })));
+      .onChange((widthMode) => host.updateReaderSettings({ widthMode: widthMode as ReaderSettings["widthMode"] })));
 
   new Setting(container)
     .setName("页边距")
@@ -108,6 +108,7 @@ function renderSettings(
         lineHeight: 1.7,
         letterSpacing: 0.01,
         paragraphSpacing: 0.65,
+        widthMode: "standard",
         contentWidth: 720,
         pageMargin: 48,
       })));
