@@ -1,4 +1,4 @@
-# OmniReader
+# Omni Reader
 
 An all-in-one, local-first EPUB 2/3 reading workbench for Obsidian. It supports paginated and scrolled reading, nested tables of contents, full-book search, reading-position restore, bookmarks, color highlights, and notes attached to highlights.
 

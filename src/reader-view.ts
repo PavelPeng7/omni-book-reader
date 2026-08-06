@@ -236,7 +236,7 @@ class HighlightActionsModal extends Modal {
       await action();
       this.close();
     } catch (error) {
-      console.error("[OmniReader] Highlight action failed", error);
+      console.error("[Omni Reader] Highlight action failed", error);
       new Notice(error instanceof Error ? error.message : "保存高亮笔记失败");
       for (const button of buttons) button.disabled = false;
     }
@@ -393,7 +393,7 @@ export class PavelEpubReaderView extends FileView {
   private layoutFrame: number | null = null;
   private wheelDelta = 0;
   private lastWheelTurnAt = 0;
-  private bookTitle = "OmniReader";
+  private bookTitle = "Omni Reader";
   private bookAuthor = "";
   private fixedLayout = false;
   private loadedFileKey = "";
@@ -408,7 +408,7 @@ export class PavelEpubReaderView extends FileView {
   }
 
   getDisplayText(): string {
-    return this.bookTitle || this.file?.basename || "OmniReader";
+    return this.bookTitle || this.file?.basename || "Omni Reader";
   }
 
   getIcon(): string {
@@ -546,7 +546,7 @@ export class PavelEpubReaderView extends FileView {
     const sidebarToggle = iconButton(header, "panel-left", "切换阅读侧栏");
     sidebarToggle.addEventListener("click", () => this.toggleSidebar());
     const headings = header.createDiv({ cls: "pavel-epub-headings" });
-    this.titleEl = headings.createDiv({ cls: "pavel-epub-title", text: "OmniReader" });
+    this.titleEl = headings.createDiv({ cls: "pavel-epub-title", text: "Omni Reader" });
     this.chapterEl = headings.createDiv({ cls: "pavel-epub-chapter", text: "准备打开书籍" });
     const headerActions = header.createDiv({ cls: "pavel-epub-header-actions" });
     const search = iconButton(headerActions, "search", "搜索当前书籍");
@@ -765,14 +765,14 @@ export class PavelEpubReaderView extends FileView {
   }
 
   private buildSidebar(parent: HTMLElement): HTMLElement {
-    const sidebar = parent.createEl("aside", { cls: "pavel-epub-sidebar", attr: { "aria-label": "OmniReader 阅读侧栏" } });
+    const sidebar = parent.createEl("aside", { cls: "pavel-epub-sidebar", attr: { "aria-label": "Omni Reader 阅读侧栏" } });
     const bookHeader = sidebar.createDiv({ cls: "pavel-epub-sidebar-book" });
     const cover = bookHeader.createDiv({ cls: "pavel-epub-sidebar-cover" });
     this.sidebarCoverEl = cover;
     setIcon(cover, "book-open");
     this.sidebarCoverMarkEl = cover.createSpan({ text: "O" });
     const identity = bookHeader.createDiv({ cls: "pavel-epub-sidebar-identity" });
-    this.sidebarBookTitleEl = identity.createDiv({ cls: "pavel-epub-sidebar-book-title", text: "OmniReader" });
+    this.sidebarBookTitleEl = identity.createDiv({ cls: "pavel-epub-sidebar-book-title", text: "Omni Reader" });
     this.sidebarBookAuthorEl = identity.createDiv({ cls: "pavel-epub-sidebar-book-author", text: "正在载入书籍信息…" });
     const progressRow = identity.createDiv({ cls: "pavel-epub-sidebar-progress-row" });
     this.sidebarProgressEl = progressRow.createEl("input", {
@@ -906,7 +906,7 @@ export class PavelEpubReaderView extends FileView {
       this.hideLoading();
     } catch (error) {
       if (generation !== this.loadGeneration) return;
-      console.error("[OmniReader] Failed to open book", error);
+      console.error("[Omni Reader] Failed to open book", error);
       this.showLoadError(file, error);
     }
   }
@@ -943,7 +943,7 @@ export class PavelEpubReaderView extends FileView {
       }, { once: true });
       coverEl.append(image);
     } catch (error) {
-      console.warn("[OmniReader] Could not load reader sidebar cover", error);
+      console.warn("[Omni Reader] Could not load reader sidebar cover", error);
     }
   }
 
@@ -958,7 +958,7 @@ export class PavelEpubReaderView extends FileView {
       const index = (event as CustomEvent<{ index: number }>).detail.index;
       for (const highlight of this.bookState?.highlights.filter((item) => item.sectionIndex === index && !item.stale) ?? []) {
         void reader.addAnnotation(annotationFor(highlight)).catch((error) => {
-          console.warn("[OmniReader] Stored highlight could not be restored", error);
+          console.warn("[Omni Reader] Stored highlight could not be restored", error);
           highlight.stale = true;
           this.plugin.store.markChanged(0);
           this.renderHighlights();
@@ -993,7 +993,7 @@ export class PavelEpubReaderView extends FileView {
     };
     const onLink = (event: Event): void => {
       void Promise.resolve(footnotes.handle(reader.book, event)).catch((error) => {
-        console.warn("[OmniReader] Could not preview footnote", error);
+        console.warn("[Omni Reader] Could not preview footnote", error);
       });
     };
     const onFootnoteRender = (event: Event): void => {
@@ -1032,7 +1032,7 @@ export class PavelEpubReaderView extends FileView {
       if (!reader.resolveNavigation(state.position.cfi)) throw new Error("Stored CFI cannot be resolved");
       await reader.init({ lastLocation: state.position.cfi, showTextStart: false });
     } catch (error) {
-      console.warn("[OmniReader] Stored CFI could not be restored", error);
+      console.warn("[Omni Reader] Stored CFI could not be restored", error);
       new Notice("原阅读位置已失效，正在按进度恢复");
       try {
         await reader.goToFraction(state.position.fraction);
@@ -1131,7 +1131,7 @@ export class PavelEpubReaderView extends FileView {
       await this.app.workspace.openLinkText(path, this.file.path, false);
       new Notice("当前章节已导出为 Markdown");
     } catch (error) {
-      console.error("[OmniReader] Chapter export failed", error);
+      console.error("[Omni Reader] Chapter export failed", error);
       new Notice(error instanceof Error ? `章节导出失败：${error.message}` : "章节导出失败");
     }
   }
@@ -1167,7 +1167,7 @@ export class PavelEpubReaderView extends FileView {
       if (this.ownsFullscreen && document.fullscreenElement) {
         this.ownsFullscreen = false;
         try { await document.exitFullscreen?.(); }
-        catch (error) { console.warn("[OmniReader] Could not exit fullscreen", error); }
+        catch (error) { console.warn("[Omni Reader] Could not exit fullscreen", error); }
       }
       window.requestAnimationFrame(() => this.applySettings());
       return;
@@ -1180,7 +1180,7 @@ export class PavelEpubReaderView extends FileView {
       this.ownsFullscreen = document.fullscreenElement === document.documentElement;
     } catch (error) {
       this.ownsFullscreen = false;
-      console.warn("[OmniReader] Fullscreen API unavailable; using immersive overlay", error);
+      console.warn("[Omni Reader] Fullscreen API unavailable; using immersive overlay", error);
     }
     window.requestAnimationFrame(() => this.applySettings());
   }
@@ -1229,7 +1229,7 @@ export class PavelEpubReaderView extends FileView {
       this.pendingSelection = { cfi, text, sectionIndex, selection };
       this.selectionToolbarEl?.addClass("is-visible");
     } catch (error) {
-      console.warn("[OmniReader] Could not create CFI for selection", error);
+      console.warn("[Omni Reader] Could not create CFI for selection", error);
       this.clearPendingSelection();
     }
   }
@@ -1322,7 +1322,7 @@ export class PavelEpubReaderView extends FileView {
       this.plugin.store.markChanged(0);
       return true;
     } catch (error) {
-      console.error("[OmniReader] Could not sync annotation documents", error);
+      console.error("[Omni Reader] Could not sync annotation documents", error);
       new Notice(error instanceof Error ? `无法同步高亮与笔记文档：${error.message}` : "无法同步高亮与笔记文档");
       return false;
     }
@@ -1724,7 +1724,7 @@ export class PavelEpubReaderView extends FileView {
       }
     } catch (error) {
       if (this.searchSession.isActive(token)) {
-        console.error("[OmniReader] Search failed", error);
+        console.error("[Omni Reader] Search failed", error);
         this.searchStatusEl.setText("搜索失败，请重试");
       }
     }

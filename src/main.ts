@@ -57,7 +57,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
 
   async onload(): Promise<void> {
     this.store = new ReaderDataStore(this, (error) => {
-      console.error("[OmniReader] Failed to persist data", error);
+      console.error("[Omni Reader] Failed to persist data", error);
     });
     await this.store.load();
     this.annotationDocuments = new AnnotationDocumentService(this.app.vault);
@@ -66,7 +66,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
         Object.values(this.store.snapshot.books).map((state) => state.annotationDocuments),
       );
     } catch (error) {
-      console.error("[OmniReader] Could not migrate legacy CFI links", error);
+      console.error("[Omni Reader] Could not migrate legacy CFI links", error);
     }
 
     this.registerView(EPUB_VIEW_TYPE, (leaf) => new PavelEpubReaderView(leaf, this));
@@ -74,8 +74,8 @@ export default class PavelEpubReaderPlugin extends Plugin {
     try {
       this.registerExtensions(["epub"], EPUB_VIEW_TYPE);
     } catch (error) {
-      console.error("[OmniReader] Could not register .epub extension", error);
-      new Notice("OmniReader 无法接管 .epub：请停用其他 EPUB 阅读插件后重载 Obsidian");
+      console.error("[Omni Reader] Could not register .epub extension", error);
+      new Notice("Omni Reader 无法接管 .epub：请停用其他 EPUB 阅读插件后重载 Obsidian");
     }
 
     this.registerObsidianProtocolHandler("pavel-epub-reader", (params) => {
@@ -104,7 +104,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
 
     this.addCommand({
       id: "open-current-epub",
-      name: "OmniReader：打开当前 EPUB",
+      name: "Omni Reader：打开当前 EPUB",
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
         const available = file instanceof TFile && file.extension.toLowerCase() === "epub";
@@ -115,20 +115,20 @@ export default class PavelEpubReaderPlugin extends Plugin {
 
     this.addCommand({
       id: "open-epub-bookshelf",
-      name: "OmniReader：打开书架",
+      name: "Omni Reader：打开书架",
       callback: () => void this.openBookshelf(),
     });
-    this.addRibbonIcon("library", "打开 OmniReader 书架", () => void this.openBookshelf());
+    this.addRibbonIcon("library", "打开 Omni Reader 书架", () => void this.openBookshelf());
 
     this.addCommand({
       id: "open-recent-epub",
-      name: "OmniReader：最近阅读与继续阅读",
+      name: "Omni Reader：最近阅读与继续阅读",
       callback: () => new RecentReadingModal(this.app, this.store).open(),
     });
 
     this.addCommand({
       id: "toggle-reader-sidebar",
-      name: "OmniReader：切换阅读侧栏",
+      name: "Omni Reader：切换阅读侧栏",
       checkCallback: (checking) => {
         const view = this.getActiveReader();
         if (!checking) view?.toggleSidebar();
@@ -138,7 +138,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
 
     this.addCommand({
       id: "toggle-current-bookmark",
-      name: "OmniReader：添加/移除当前位置书签",
+      name: "Omni Reader：添加/移除当前位置书签",
       checkCallback: (checking) => {
         const view = this.getActiveReader();
         if (!checking) view?.toggleBookmark();
@@ -148,7 +148,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
 
     this.addCommand({
       id: "export-current-highlights",
-      name: "OmniReader：导出当前 EPUB 高亮摘抄",
+      name: "Omni Reader：导出当前 EPUB 高亮摘抄",
       checkCallback: (checking) => {
         const view = this.getActiveReader();
         if (!checking && view) void view.exportAnnotations("highlights");
@@ -158,7 +158,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
 
     this.addCommand({
       id: "export-current-notes",
-      name: "OmniReader：导出当前 EPUB 笔记",
+      name: "Omni Reader：导出当前 EPUB 笔记",
       checkCallback: (checking) => {
         const view = this.getActiveReader();
         if (!checking && view) void view.exportAnnotations("notes");
@@ -168,7 +168,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
 
     this.addCommand({
       id: "export-current-chapter",
-      name: "OmniReader：导出当前 EPUB 章节为 Markdown",
+      name: "Omni Reader：导出当前 EPUB 章节为 Markdown",
       checkCallback: (checking) => {
         const view = this.getActiveReader();
         if (!checking && view) void view.exportCurrentChapter();
@@ -178,7 +178,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
 
     this.addCommand({
       id: "toggle-focus-paragraph",
-      name: "OmniReader：切换沉浸式阅读",
+      name: "Omni Reader：切换沉浸式阅读",
       checkCallback: (checking) => {
         const view = this.getActiveReader();
         if (!checking) view?.toggleFocusMode();
@@ -188,7 +188,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
 
     this.addCommand({
       id: "show-reading-stats",
-      name: "OmniReader：显示阅读统计",
+      name: "Omni Reader：显示阅读统计",
       checkCallback: (checking) => {
         const view = this.getActiveReader();
         if (!checking) view?.openReadingStats();
@@ -207,14 +207,14 @@ export default class PavelEpubReaderPlugin extends Plugin {
       const state = this.store.getBook(file.path);
       menu.addSeparator();
       menu.addItem((item) => item
-        .setTitle(state?.hiddenFromBookshelf ? "OmniReader：加入书架" : "OmniReader：从书架中移除")
+        .setTitle(state?.hiddenFromBookshelf ? "Omni Reader：加入书架" : "Omni Reader：从书架中移除")
         .setIcon(state?.hiddenFromBookshelf ? "library-big" : "eye-off")
         .onClick(() => {
           const book = this.store.ensureBook(file.path, { size: file.stat.size, mtime: file.stat.mtime });
           book.hiddenFromBookshelf = state?.hiddenFromBookshelf ? undefined : true;
           this.store.markChanged(0);
           this.refreshBookshelves();
-          new Notice(book.hiddenFromBookshelf ? "已从 OmniReader 书架中移除" : "已加入 OmniReader 书架");
+          new Notice(book.hiddenFromBookshelf ? "已从 Omni Reader 书架中移除" : "已加入 Omni Reader 书架");
         }));
     }));
 
@@ -291,7 +291,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
       if (leaf.view instanceof PavelEpubReaderView) await leaf.view.navigateToCfi(cfi);
       else new Notice("无法创建 EPUB 阅读视图");
     } catch (error) {
-      console.error("[OmniReader] Failed to open CFI link", error);
+      console.error("[Omni Reader] Failed to open CFI link", error);
       new Notice("打开 EPUB 原文位置失败");
     }
   }

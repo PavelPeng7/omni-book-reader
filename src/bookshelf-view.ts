@@ -109,7 +109,7 @@ class RenameBookModal extends Modal {
         await this.onSubmit(value);
         this.close();
       } catch (error) {
-        console.error("[OmniReader] Could not rename EPUB", error);
+        console.error("[Omni Reader] Could not rename EPUB", error);
         new Notice(error instanceof Error ? error.message : "重命名书籍失败");
       } finally {
         save.disabled = false;
@@ -177,7 +177,7 @@ export class PavelEpubBookshelfView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "OmniReader 书架";
+    return "Omni Reader 书架";
   }
 
   getIcon(): string {
@@ -261,7 +261,7 @@ export class PavelEpubBookshelfView extends ItemView {
     setIcon(searchIcon, "search");
     const input = search.createEl("input", {
       type: "search",
-      attr: { placeholder: "搜索书名或路径", "aria-label": "搜索 OmniReader 书架" },
+      attr: { placeholder: "搜索书名或路径", "aria-label": "搜索 Omni Reader 书架" },
     });
     input.value = this.query;
     input.addEventListener("input", () => {
@@ -395,7 +395,7 @@ export class PavelEpubBookshelfView extends ItemView {
         this.coverCache.set(file.path, { signature, url });
         return url;
       } catch (error) {
-        console.warn(`[OmniReader] Could not load cover: ${file.path}`, error);
+        console.warn(`[Omni Reader] Could not load cover: ${file.path}`, error);
         if (!this.closed && generation === this.coverGeneration) {
           this.coverCache.set(file.path, { signature, url: null });
         }
@@ -510,7 +510,7 @@ export class PavelEpubBookshelfView extends ItemView {
     const state = this.stateFor(file);
     state.hiddenFromBookshelf = true;
     this.plugin.store.markChanged(0);
-    new Notice("已从 OmniReader 书架中移除；文件仍保留在 Vault 中。");
+    new Notice("已从 Omni Reader 书架中移除；文件仍保留在 Vault 中。");
     this.render();
   }
 
@@ -530,7 +530,7 @@ export class PavelEpubBookshelfView extends ItemView {
       this.plugin.store.removeBook(file.path);
       new Notice("书籍文件已移入系统回收站");
     } catch (error) {
-      console.error("[OmniReader] Could not delete EPUB", error);
+      console.error("[Omni Reader] Could not delete EPUB", error);
       new Notice("删除书籍文件失败");
     }
   }

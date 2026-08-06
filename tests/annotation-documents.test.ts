@@ -33,10 +33,10 @@ describe("annotation documents", () => {
     const highlights = renderHighlightDocument("测试书", "测试作者", [item], options);
     const notes = renderNoteDocument("测试书", "测试作者", [item], options);
 
-    expect(highlights).toContain("# OmniReader - Highlights");
+    expect(highlights).toContain("# Omni Reader - Highlights");
     expect(highlights).toContain("### 第一章\n\n> 被高亮的原文");
     expect(highlights).not.toContain("我的想法");
-    expect(notes).toContain("# OmniReader - Notes");
+    expect(notes).toContain("# Omni Reader - Notes");
     expect(notes).toContain("**Note:** 我的想法");
     expect(notes).toContain("Date: 2026-07-19 | Color: #FFD54F | Style: 高亮 | Tags: 原型");
     expect(notes).toContain("obsidian://pavel-epub-reader?sourceVault=");

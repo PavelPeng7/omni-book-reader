@@ -176,7 +176,7 @@ function renderDocument(
   highlights: ReaderHighlight[],
   options: AnnotationRenderOptions,
 ): string {
-  const documentTitle = kind === "notes" ? "OmniReader - Notes" : "OmniReader - Highlights";
+  const documentTitle = kind === "notes" ? "Omni Reader - Notes" : "Omni Reader - Highlights";
   const entries = renderEntries(kind, highlights, options);
   const normalizedAuthor = singleLine(author);
   const builtIn = [

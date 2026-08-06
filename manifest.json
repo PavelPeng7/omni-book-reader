@@ -1,6 +1,6 @@
 {
   "id": "omnireader",
-  "name": "OmniReader",
+  "name": "Omni Reader",
   "version": "0.6.11",
   "minAppVersion": "1.9.14",
   "description": "An all-in-one, local-first EPUB reading workbench with a bookshelf, annotations, exports, focus mode, and reading statistics.",
