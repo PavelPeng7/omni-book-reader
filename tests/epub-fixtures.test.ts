@@ -1,12 +1,14 @@
-import { File } from "node:buffer";
+import { Blob, File } from "node:buffer";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { makeBook } from "foliate-js/view.js";
 import { extractEpubCover } from "../src/epub-cover";
+import { createEpubBook } from "../src/epub-loader";
 
 const fixtureVault = process.env.OMNIREADER_E2E_VAULT;
 const integrationDescribe = fixtureVault ? describe : describe.skip;
+
+if (fixtureVault) Object.defineProperty(globalThis, "Blob", { value: Blob, configurable: true });
 
 integrationDescribe("vault EPUB fixtures", () => {
   it("parses the existing EPUB 2 and EPUB 3 books", async () => {
@@ -22,7 +24,7 @@ integrationDescribe("vault EPUB fixtures", () => {
       if (!largestFixture || bytes.length > largestFixture.bytes.length) {
         largestFixture = { bytes, name: entry.name };
       }
-      const book = await makeBook(new File([bytes], entry.name, { type: "application/epub+zip" }));
+      const book = await createEpubBook(new Uint8Array(bytes));
       summaries.push({
         title: typeof book.metadata?.title === "string" ? book.metadata.title : "",
         sections: book.sections?.length ?? 0,

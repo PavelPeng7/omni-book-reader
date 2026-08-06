@@ -14,6 +14,7 @@ import type { AnnotationDocumentInput } from "./annotation-documents";
 import { exportChapterMarkdown } from "./chapter-export";
 import { readEpubBinaryCandidates } from "./epub-binary";
 import { extractEpubCover } from "./epub-cover";
+import { bookLoadTimeout, createEpubBook, withLoadTimeout } from "./epub-loader";
 import { uiLocale, uiText } from "./i18n";
 import { extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
 import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
@@ -25,6 +26,7 @@ import type { ReaderDataStore } from "./store";
 import type {
   BookState,
   Bookmark,
+  FoliateBook,
   FoliateLocation,
   FoliateSearchItem,
   FoliateSearchResult,
@@ -439,12 +441,14 @@ export class PavelEpubReaderView extends FileView {
     this.registerDomEvent(document, "fullscreenchange", () => this.handleFullscreenChange());
     this.themeObserver = new MutationObserver(() => this.applySettings());
     this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
-    if (this.file) await this.loadBook(this.file);
+    if (this.file) void this.loadBook(this.file);
   }
 
   async onLoadFile(file: TFile): Promise<void> {
     if (!this.rootEl) this.buildShell();
-    await this.loadBook(file);
+    // FileView waits for this hook before revealing the leaf. Run the archive
+    // work in the background so the loading state is visible immediately.
+    void this.loadBook(file);
   }
 
   async onUnloadFile(_file: TFile): Promise<void> {
@@ -606,7 +610,7 @@ export class PavelEpubReaderView extends FileView {
     previous.addClass("pavel-epub-page-button", "is-previous");
     previous.addEventListener("click", () => void this.reader?.goLeft());
     this.viewerEl = readingArea.createDiv({ cls: "pavel-epub-viewer" });
-    this.loadingEl = this.viewerEl.createDiv({ cls: "pavel-epub-loading", text: t("正在加载 EPUB…", "Loading EPUB…") });
+    this.showLoading(t("正在准备书籍…", "Preparing book…"), 0.04);
     const next = iconButton(readingArea, "chevron-right", t("下一页", "Next page"));
     next.addClass("pavel-epub-page-button", "is-next");
     next.addEventListener("click", () => void this.reader?.goRight());
@@ -868,7 +872,11 @@ export class PavelEpubReaderView extends FileView {
     const generation = ++this.loadGeneration;
     await this.cleanupReader(false);
     if (generation !== this.loadGeneration || !this.viewerEl) return;
-    this.showLoading(this.text("正在读取 EPUB…", "Reading EPUB…"));
+    this.showLoading(
+      this.text("正在读取 EPUB…", "Reading EPUB…"),
+      0.1,
+      this.text("正在从 Obsidian 文库读取文件", "Reading the file from the Obsidian vault"),
+    );
 
     try {
       const binaries = await readEpubBinaryCandidates(this.app.vault, file);
@@ -876,22 +884,70 @@ export class PavelEpubReaderView extends FileView {
       let reader: FoliateViewElement | null = null;
       let openedSource: File | null = null;
       let lastOpenError: unknown;
-      for (const binary of binaries) {
+      const timeout = bookLoadTimeout(file.stat.size);
+      for (const [candidateIndex, binary] of binaries.entries()) {
+        this.showLoading(
+          this.text("正在检查书籍结构…", "Checking book structure…"),
+          0.28,
+          this.text(`读取路径 ${candidateIndex + 1}/${binaries.length}`, `Read path ${candidateIndex + 1} of ${binaries.length}`),
+        );
         const source = new File([binary], file.name, {
           type: "application/epub+zip",
           lastModified: file.stat.mtime,
         });
         const candidate = document.createElement("foliate-view") as FoliateViewElement;
-        candidate.addClass("pavel-epub-foliate-view");
-        this.attachReaderEvents(candidate);
+        candidate.addClass("pavel-epub-foliate-view", "is-loading");
+        this.viewerEl.append(candidate);
+        let book: FoliateBook | null = null;
         try {
-          await candidate.open(source);
+          book = await withLoadTimeout(createEpubBook(binary, ({ phase, loaded, total }) => {
+            if (generation !== this.loadGeneration) return;
+            const ratio = total > 0 ? Math.min(1, loaded / total) : 0;
+            this.showLoading(
+              phase === "archive"
+                ? this.text("正在解包 EPUB…", "Unpacking EPUB…")
+                : this.text("正在解析书籍信息…", "Parsing book metadata…"),
+              phase === "archive" ? 0.3 + ratio * 0.24 : 0.56 + ratio * 0.08,
+              phase === "archive" && total > 0
+                ? this.text(`已检查 ${loaded}/${total} 个资源`, `Checked ${loaded} of ${total} resources`)
+                : this.text("正在读取目录与章节", "Reading the table of contents and chapters"),
+            );
+          }), timeout, () => {
+            if (generation === this.loadGeneration) {
+              this.showLoading(
+                this.text("这本书需要更长时间…", "This book is taking longer…"),
+                0.52,
+                this.text("仍在安全解析，请保持此页面打开", "Still parsing safely; keep this view open"),
+              );
+            }
+          });
+          if (generation !== this.loadGeneration) {
+            book.destroy?.();
+            candidate.remove();
+            return;
+          }
+          this.showLoading(
+            this.text("正在创建阅读页面…", "Creating reading pages…"),
+            0.7,
+            this.text("正在启动排版引擎", "Starting the layout engine"),
+          );
+          await withLoadTimeout(candidate.open(book), timeout, () => {
+            if (generation === this.loadGeneration) {
+              this.showLoading(
+                this.text("正在等待排版完成…", "Waiting for layout…"),
+                0.76,
+                this.text("复杂图片或字体可能需要更多时间", "Complex images or fonts may need more time"),
+              );
+            }
+          });
           reader = candidate;
           openedSource = source;
           break;
         } catch (error) {
           lastOpenError = error;
           candidate.close?.();
+          book?.destroy?.();
+          candidate.remove();
         }
       }
       if (!reader) throw lastOpenError ?? new Error("Unable to open EPUB payload");
@@ -899,11 +955,10 @@ export class PavelEpubReaderView extends FileView {
         reader.close?.();
         return;
       }
-      this.viewerEl.empty();
-      this.viewerEl.append(reader);
       this.reader = reader;
       if (generation !== this.loadGeneration) return;
 
+      this.attachReaderEvents(reader);
       this.cleanupCallbacks.push(installPublicationSanitizer(reader.book.transformTarget));
       this.fixedLayout = Boolean(reader.isFixedLayout || reader.book.rendition?.layout === "pre-paginated");
       this.bookState = this.plugin.store.ensureBook(file.path, { size: file.stat.size, mtime: file.stat.mtime });
@@ -925,9 +980,15 @@ export class PavelEpubReaderView extends FileView {
         this.renderHighlights();
       }
 
-      await this.restorePosition(reader, this.bookState);
+      this.showLoading(
+        this.text("正在恢复阅读位置…", "Restoring reading position…"),
+        0.9,
+        this.text("即将完成", "Almost ready"),
+      );
+      await withLoadTimeout(this.restorePosition(reader, this.bookState), timeout);
       if (generation !== this.loadGeneration) return;
       this.loadedFileKey = fileKey;
+      reader.removeClass("is-loading");
       this.hideLoading();
     } catch (error) {
       if (generation !== this.loadGeneration) return;
@@ -1506,6 +1567,7 @@ export class PavelEpubReaderView extends FileView {
       const row = list.createEl("li");
       const label = formatLanguageValue(item.label) || this.text("未命名章节", "Untitled chapter");
       const button = row.createEl("button", { cls: "pavel-epub-list-button", attr: { type: "button", "data-depth": String(depth) } });
+      button.style.setProperty("--pavel-epub-toc-indent", `${Math.min(depth, 4) * 12}px`);
       button.createSpan({ cls: "pavel-epub-toc-dot", attr: { "aria-hidden": "true" } });
       button.createSpan({ cls: "pavel-epub-toc-label", text: label });
       const marker = button.createSpan({ cls: "pavel-epub-toc-current-marker", text: this.text("当前", "Current") });
@@ -1859,10 +1921,30 @@ export class PavelEpubReaderView extends FileView {
     void (direction === "next" ? this.reader.goRight() : this.reader.goLeft());
   }
 
-  private showLoading(message: string): void {
+  private showLoading(message: string, progress = 0, detail = ""): void {
     if (!this.viewerEl) return;
-    this.viewerEl.empty();
-    this.loadingEl = this.viewerEl.createDiv({ cls: "pavel-epub-loading", text: message });
+    if (!this.loadingEl?.isConnected || !this.loadingEl.querySelector(".pavel-epub-loading-title")) {
+      this.loadingEl?.remove();
+      this.loadingEl = this.viewerEl.createDiv({
+        cls: "pavel-epub-loading",
+        attr: { role: "status", "aria-live": "polite", "aria-busy": "true" },
+      });
+      this.loadingEl.createDiv({ cls: "pavel-epub-loading-mark", attr: { "aria-hidden": "true" } });
+      this.loadingEl.createDiv({ cls: "pavel-epub-loading-title" });
+      const track = this.loadingEl.createDiv({
+        cls: "pavel-epub-loading-track",
+        attr: { role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100" },
+      });
+      track.createDiv({ cls: "pavel-epub-loading-bar" });
+      this.loadingEl.createDiv({ cls: "pavel-epub-loading-detail" });
+    }
+    const value = Math.max(0, Math.min(1, progress));
+    this.loadingEl.querySelector<HTMLElement>(".pavel-epub-loading-title")?.setText(message);
+    this.loadingEl.querySelector<HTMLElement>(".pavel-epub-loading-detail")?.setText(detail);
+    const track = this.loadingEl.querySelector<HTMLElement>(".pavel-epub-loading-track");
+    track?.setAttribute("aria-valuenow", String(Math.round(value * 100)));
+    this.loadingEl.querySelector<HTMLElement>(".pavel-epub-loading-bar")
+      ?.style.setProperty("--pavel-epub-load-progress", `${value * 100}%`);
   }
 
   private hideLoading(): void {

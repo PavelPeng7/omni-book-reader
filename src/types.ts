@@ -148,7 +148,7 @@ export interface FoliateViewElement extends HTMLElement {
   renderer: FoliateRenderer;
   isFixedLayout?: boolean;
   lastLocation?: FoliateLocation;
-  open(file: File): Promise<void>;
+  open(source: File | FoliateBook): Promise<void>;
   init(options: { lastLocation?: string; showTextStart: boolean }): Promise<void>;
   close(): void;
   goLeft(): Promise<void> | void;
