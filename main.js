@@ -173,7 +173,7 @@ body:not(.notesBodyType) > .title, body:not(.notesBodyType) > .epigraph {
 `):n==="notes"?"_\u6682\u65E0\u7B14\u8BB0\u3002_":"_\u6682\u65E0\u9AD8\u4EAE\u3002_"}function ma(n,e,t){let i=t.preset??"classic";return i==="compact"?ga(n,e,t):i==="callout"?fa(n,e,t):pa(n,e,t)}function ba(n,e){let t=n.replace(/\{\{\s*([\w.]+)\s*\}\}/g,(i,s)=>e[s]??i);return/\{\{\s*entries\s*\}\}/.test(n)||(t=`${t.trimEnd()}
 
 ${e.entries}`),`${t.trim()||e.entries}
-`}function vs(n,e,t,i,s){let r=n==="notes"?"OmniReader - Notes":"OmniReader - Highlights",o=ma(n,i,s),a=It(t),l=[`# ${r}`,"",`## ${It(e,"\u672A\u547D\u540D\u4E66\u7C4D")}`,...a?["",`*${a}*`]:[],"",o].join(`
+`}function vs(n,e,t,i,s){let r=n==="notes"?"Omni Reader - Notes":"Omni Reader - Highlights",o=ma(n,i,s),a=It(t),l=[`# ${r}`,"",`## ${It(e,"\u672A\u547D\u540D\u4E66\u7C4D")}`,...a?["",`*${a}*`]:[],"",o].join(`
 `);return s.customTemplate?.trim()?ba(s.customTemplate,{"document.title":r,"document.kind":n,"book.title":It(e,"\u672A\u547D\u540D\u4E66\u7C4D"),"book.author":a,"book.filePath":(0,Pt.normalizePath)(s.sourcePath??""),"export.date":Di(s.exportedAt??Date.now()),entries:o}):`${l.trimEnd()}
 `}function va(n,e,t,i={}){return vs("highlights",n,e,bs(t),i)}function wa(n,e,t,i={}){let s=bs(t).filter(r=>!!r.note?.trim());return vs("notes",n,e,s,i)}function ya(n){return`<!-- pavel-epub-reader:${n}:start -->`}function xa(n){return`<!-- pavel-epub-reader:${n}:end -->`}function fs(n,e,t){let i=ya(e),s=xa(e),r=t.replace(/<!--\s*pavel-epub-reader:/gi,"&lt;!-- pavel-epub-reader:"),o=`${i}
 ${r.trim()}
