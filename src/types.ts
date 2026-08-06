@@ -5,8 +5,10 @@ export type ReaderWidthMode = "standard" | "wide" | "full" | "edge";
 export type HighlightColor = "yellow" | "green" | "blue" | "pink";
 export type HighlightStyle = "highlight" | "underline" | "strikethrough" | "squiggly";
 export type ExportTemplatePreset = "classic" | "compact" | "callout" | "custom";
+export type InterfaceLanguage = "zh" | "en";
 
 export interface ReaderSettings {
+  interfaceLanguage: InterfaceLanguage;
   theme: ReaderTheme;
   layout: ReaderLayout;
   font: ReaderFont;

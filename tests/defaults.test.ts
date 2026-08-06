@@ -12,6 +12,7 @@ describe("reader settings", () => {
 
   it("normalizes enum values and clamps numeric settings", () => {
     expect(normalizeSettings({
+      interfaceLanguage: "invalid",
       theme: "invalid",
       layout: "scrolled",
       font: "sans",
@@ -22,6 +23,7 @@ describe("reader settings", () => {
       contentWidth: 2000,
       pageMargin: -20,
     })).toEqual({
+      interfaceLanguage: "zh",
       theme: "auto",
       layout: "scrolled",
       font: "sans",
@@ -36,9 +38,10 @@ describe("reader settings", () => {
       customExportTemplatePath: "",
     });
     expect(normalizeSettings({
+      interfaceLanguage: "en",
       exportTemplate: "custom",
       customExportTemplatePath: "模板\\EPUB 导出.md",
-    }).exportTemplate).toBe("custom");
+    })).toMatchObject({ interfaceLanguage: "en", exportTemplate: "custom" });
     expect(normalizeSettings({
       exportTemplate: "callout",
       customExportTemplatePath: "模板\\EPUB 导出.md",

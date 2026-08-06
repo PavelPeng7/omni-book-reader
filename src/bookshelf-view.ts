@@ -1,11 +1,14 @@
 import { FuzzySuggestModal, ItemView, Menu, Modal, Notice, TFile, WorkspaceLeaf, normalizePath, setIcon } from "obsidian";
 import { extractEpubCover } from "./epub-cover";
+import { uiLocale, uiText } from "./i18n";
 import type { ReaderDataStore } from "./store";
+import type { InterfaceLanguage, ReaderSettings } from "./types";
 
 export const EPUB_BOOKSHELF_VIEW_TYPE = "pavel-epub-bookshelf-view";
 
 export interface BookshelfHost {
   store: ReaderDataStore;
+  getReaderSettings(): ReaderSettings;
   openEpub(file: TFile): Promise<void>;
 }
 
@@ -37,9 +40,9 @@ function formatBytes(bytes: number): string {
 }
 
 class ImagePickerModal extends FuzzySuggestModal<TFile> {
-  constructor(app: import("obsidian").App, private readonly onChoose: (file: TFile) => void) {
+  constructor(app: import("obsidian").App, language: InterfaceLanguage, private readonly onChoose: (file: TFile) => void) {
     super(app);
-    this.setPlaceholder("搜索 Vault 中的图片");
+    this.setPlaceholder(uiText(language, "搜索 Vault 中的图片", "Search images in the Vault"));
   }
 
   getItems(): TFile[] {
@@ -56,24 +59,25 @@ class ImagePickerModal extends FuzzySuggestModal<TFile> {
 }
 
 class BookDetailsModal extends Modal {
-  constructor(private readonly book: ShelfBook, app: import("obsidian").App) {
+  constructor(private readonly book: ShelfBook, app: import("obsidian").App, private readonly language: InterfaceLanguage) {
     super(app);
   }
 
   onOpen(): void {
-    this.titleEl.setText("书籍完整信息");
+    const t = (zh: string, en: string): string => uiText(this.language, zh, en);
+    this.titleEl.setText(t("书籍完整信息", "Book details"));
     const state = this.book;
     const details: Array<[string, string]> = [
-      ["书名", state.file.basename],
-      ["位置", state.file.path],
-      ["文件大小", formatBytes(state.file.stat.size)],
-      ["最近修改", new Date(state.file.stat.mtime).toLocaleString()],
-      ["阅读进度", percent(state.progress)],
-      ["阅读状态", state.completed ? "已读完" : "阅读中"],
-      ["最近阅读", state.lastOpenedAt ? new Date(state.lastOpenedAt).toLocaleString() : "尚未阅读"],
-      ["高亮", `${state.highlightCount} 条`],
-      ["书签", `${state.bookmarkCount} 个`],
-      ["书单", state.inReadingList ? "已加入" : "未加入"],
+      [t("书名", "Title"), state.file.basename],
+      [t("位置", "Location"), state.file.path],
+      [t("文件大小", "File size"), formatBytes(state.file.stat.size)],
+      [t("最近修改", "Last modified"), new Date(state.file.stat.mtime).toLocaleString(uiLocale(this.language))],
+      [t("阅读进度", "Reading progress"), percent(state.progress)],
+      [t("阅读状态", "Reading status"), state.completed ? t("已读完", "Finished") : t("阅读中", "Reading")],
+      [t("最近阅读", "Last read"), state.lastOpenedAt ? new Date(state.lastOpenedAt).toLocaleString(uiLocale(this.language)) : t("尚未阅读", "Not read yet")],
+      [t("高亮", "Highlights"), t(`${state.highlightCount} 条`, `${state.highlightCount}`)],
+      [t("书签", "Bookmarks"), t(`${state.bookmarkCount} 个`, `${state.bookmarkCount}`)],
+      [t("书单", "Reading list"), state.inReadingList ? t("已加入", "Added") : t("未加入", "Not added")],
     ];
     const list = this.contentEl.createDiv({ cls: "pavel-epub-book-details" });
     for (const [label, value] of details) {
@@ -87,30 +91,31 @@ class BookDetailsModal extends Modal {
 }
 
 class RenameBookModal extends Modal {
-  constructor(app: import("obsidian").App, private readonly file: TFile, private readonly onSubmit: (name: string) => Promise<void>) {
+  constructor(app: import("obsidian").App, private readonly file: TFile, private readonly language: InterfaceLanguage, private readonly onSubmit: (name: string) => Promise<void>) {
     super(app);
   }
 
   onOpen(): void {
-    this.titleEl.setText("重命名书籍");
+    const t = (zh: string, en: string): string => uiText(this.language, zh, en);
+    this.titleEl.setText(t("重命名书籍", "Rename book"));
     const input = this.contentEl.createEl("input", {
       type: "text",
       value: this.file.basename,
-      attr: { "aria-label": "新的书籍名称" },
+      attr: { "aria-label": t("新的书籍名称", "New book name") },
     });
     const actions = this.contentEl.createDiv({ cls: "pavel-epub-modal-actions" });
-    const save = actions.createEl("button", { cls: "mod-cta", text: "保存" });
-    actions.createEl("button", { text: "取消" }).addEventListener("click", () => this.close());
+    const save = actions.createEl("button", { cls: "mod-cta", text: t("保存", "Save") });
+    actions.createEl("button", { text: t("取消", "Cancel") }).addEventListener("click", () => this.close());
     const submit = async () => {
       const value = input.value.trim();
-      if (!value) return new Notice("请输入书籍名称");
+      if (!value) return new Notice(t("请输入书籍名称", "Enter a book name"));
       save.disabled = true;
       try {
         await this.onSubmit(value);
         this.close();
       } catch (error) {
         console.error("[OmniReader] Could not rename EPUB", error);
-        new Notice(error instanceof Error ? error.message : "重命名书籍失败");
+        new Notice(error instanceof Error ? error.message : t("重命名书籍失败", "Could not rename the book"));
       } finally {
         save.disabled = false;
       }
@@ -125,14 +130,15 @@ class RenameBookModal extends Modal {
 }
 
 class DeleteBookModal extends Modal {
-  constructor(app: import("obsidian").App, private readonly file: TFile, private readonly onConfirm: () => Promise<void>) { super(app); }
+  constructor(app: import("obsidian").App, private readonly file: TFile, private readonly language: InterfaceLanguage, private readonly onConfirm: () => Promise<void>) { super(app); }
 
   onOpen(): void {
-    this.titleEl.setText("删除书籍文件？");
-    this.contentEl.createEl("p", { text: `“${this.file.basename}”将移入系统回收站。此操作不会删除其他笔记。` });
+    const t = (zh: string, en: string): string => uiText(this.language, zh, en);
+    this.titleEl.setText(t("删除书籍文件？", "Delete book file?"));
+    this.contentEl.createEl("p", { text: t(`“${this.file.basename}”将移入系统回收站。此操作不会删除其他笔记。`, `“${this.file.basename}” will be moved to the system trash. Other notes will not be deleted.`) });
     const actions = this.contentEl.createDiv({ cls: "pavel-epub-modal-actions" });
-    actions.createEl("button", { text: "取消" }).addEventListener("click", () => this.close());
-    const remove = actions.createEl("button", { cls: "mod-warning", text: "移入回收站" });
+    actions.createEl("button", { text: t("取消", "Cancel") }).addEventListener("click", () => this.close());
+    const remove = actions.createEl("button", { cls: "mod-warning", text: t("移入回收站", "Move to trash") });
     remove.addEventListener("click", () => void (async () => {
       remove.disabled = true;
       try { await this.onConfirm(); this.close(); } finally { remove.disabled = false; }
@@ -146,17 +152,18 @@ function percent(value: number): string {
   return `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`;
 }
 
-function relativeTime(timestamp: number): string {
-  if (!timestamp) return "尚未阅读";
+function relativeTime(timestamp: number, language: InterfaceLanguage): string {
+  const t = (zh: string, en: string): string => uiText(language, zh, en);
+  if (!timestamp) return t("尚未阅读", "Not read yet");
   const elapsed = Math.max(0, Date.now() - timestamp);
   const minutes = Math.floor(elapsed / 60000);
-  if (minutes < 1) return "刚刚阅读";
-  if (minutes < 60) return `${minutes} 分钟前`;
+  if (minutes < 1) return t("刚刚阅读", "Just read");
+  if (minutes < 60) return t(`${minutes} 分钟前`, `${minutes} min ago`);
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} 小时前`;
+  if (hours < 24) return t(`${hours} 小时前`, `${hours} hr ago`);
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days} 天前`;
-  return new Date(timestamp).toLocaleDateString();
+  if (days < 30) return t(`${days} 天前`, `${days} days ago`);
+  return new Date(timestamp).toLocaleDateString(uiLocale(language));
 }
 
 export class PavelEpubBookshelfView extends ItemView {
@@ -177,7 +184,7 @@ export class PavelEpubBookshelfView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "OmniReader 书架";
+    return this.text("OmniReader 书架", "OmniReader bookshelf");
   }
 
   getIcon(): string {
@@ -229,6 +236,7 @@ export class PavelEpubBookshelfView extends ItemView {
   }
 
   private render(): void {
+    const t = (zh: string, en: string): string => this.text(zh, en);
     const content = this.contentEl;
     content.empty();
     content.addClass("pavel-epub-bookshelf");
@@ -238,19 +246,19 @@ export class PavelEpubBookshelfView extends ItemView {
     const heading = content.createDiv({ cls: "pavel-epub-bookshelf-heading" });
     const titleGroup = heading.createDiv();
     titleGroup.createDiv({ cls: "pavel-epub-bookshelf-kicker", text: "OMNIREADER" });
-    titleGroup.createEl("h2", { text: "我的文库" });
+    titleGroup.createEl("h2", { text: t("我的文库", "My library") });
     const count = heading.createDiv({ cls: "pavel-epub-bookshelf-count", text: String(allBooks.length) });
-    count.setAttribute("aria-label", `${allBooks.length} 本 EPUB`);
+    count.setAttribute("aria-label", t(`${allBooks.length} 本 EPUB`, `${allBooks.length} EPUB books`));
 
     const summary = content.createDiv({ cls: "pavel-epub-bookshelf-summary" });
     const readingCount = allBooks.filter((book) => book.lastOpenedAt && !book.completed).length;
     const completedCount = allBooks.filter((book) => book.completed).length;
-    summary.createSpan({ text: `${readingCount} 本在读` });
-    summary.createSpan({ text: `${completedCount} 本读完` });
+    summary.createSpan({ text: t(`${readingCount} 本在读`, `${readingCount} reading`) });
+    summary.createSpan({ text: t(`${completedCount} 本读完`, `${completedCount} finished`) });
 
     const filters = content.createDiv({ cls: "pavel-epub-bookshelf-filters" });
-    const allFilter = filters.createEl("button", { text: "全部书籍", attr: { type: "button", "aria-pressed": String(!this.listOnly) } });
-    const listFilter = filters.createEl("button", { text: "我的书单", attr: { type: "button", "aria-pressed": String(this.listOnly) } });
+    const allFilter = filters.createEl("button", { text: t("全部书籍", "All books"), attr: { type: "button", "aria-pressed": String(!this.listOnly) } });
+    const listFilter = filters.createEl("button", { text: t("我的书单", "Reading list"), attr: { type: "button", "aria-pressed": String(this.listOnly) } });
     allFilter.toggleClass("is-active", !this.listOnly);
     listFilter.toggleClass("is-active", this.listOnly);
     allFilter.addEventListener("click", () => { this.listOnly = false; this.render(); });
@@ -261,7 +269,7 @@ export class PavelEpubBookshelfView extends ItemView {
     setIcon(searchIcon, "search");
     const input = search.createEl("input", {
       type: "search",
-      attr: { placeholder: "搜索书名或路径", "aria-label": "搜索 OmniReader 书架" },
+      attr: { placeholder: t("搜索书名或路径", "Search titles or paths"), "aria-label": t("搜索 OmniReader 书架", "Search the OmniReader bookshelf") },
     });
     input.value = this.query;
     input.addEventListener("input", () => {
@@ -270,13 +278,15 @@ export class PavelEpubBookshelfView extends ItemView {
     });
 
     const section = content.createDiv({ cls: "pavel-epub-bookshelf-section" });
-    section.createDiv({ cls: "pavel-epub-bookshelf-section-title", text: this.listOnly ? "我的书单" : "全部书籍" });
+    section.createDiv({ cls: "pavel-epub-bookshelf-section-title", text: this.listOnly ? t("我的书单", "Reading list") : t("全部书籍", "All books") });
     const list = section.createDiv({ cls: "pavel-epub-bookshelf-list" });
     const empty = section.createDiv({ cls: "pavel-epub-bookshelf-empty" });
     this.renderBookList(list, empty, allBooks);
   }
 
   private renderBookList(list: HTMLElement, empty: HTMLElement, allBooks: ShelfBook[]): void {
+    const t = (zh: string, en: string): string => this.text(zh, en);
+    const language = this.plugin.getReaderSettings().interfaceLanguage;
     list.empty();
     const query = this.query.trim().toLocaleLowerCase("zh-CN");
     const selectableBooks = this.listOnly ? allBooks.filter((book) => book.inReadingList) : allBooks;
@@ -284,12 +294,14 @@ export class PavelEpubBookshelfView extends ItemView {
       ? selectableBooks.filter(({ file }) => `${file.basename}\n${file.path}`.toLocaleLowerCase("zh-CN").includes(query))
       : selectableBooks;
     empty.toggleClass("is-visible", books.length === 0);
-    empty.setText(allBooks.length ? (this.listOnly ? "书单中还没有 EPUB" : "没有匹配的 EPUB") : "Vault 中还没有 EPUB 文件");
+    empty.setText(allBooks.length
+      ? (this.listOnly ? t("书单中还没有 EPUB", "No EPUBs in your reading list yet") : t("没有匹配的 EPUB", "No matching EPUBs"))
+      : t("Vault 中还没有 EPUB 文件", "There are no EPUB files in the Vault yet"));
 
     for (const book of books) {
       const button = list.createEl("button", {
         cls: "pavel-epub-bookshelf-book",
-        attr: { type: "button", "aria-label": `打开 ${book.file.basename}` },
+        attr: { type: "button", "aria-label": t(`打开 ${book.file.basename}`, `Open ${book.file.basename}`) },
       });
       const cover = button.createDiv({ cls: "pavel-epub-bookshelf-cover" });
       const coverIcon = cover.createSpan();
@@ -297,12 +309,12 @@ export class PavelEpubBookshelfView extends ItemView {
       void this.attachCover(book.file, cover, coverIcon);
       const body = button.createDiv({ cls: "pavel-epub-bookshelf-book-body" });
       body.createDiv({ cls: "pavel-epub-bookshelf-book-title", text: book.file.basename });
-      body.createDiv({ cls: "pavel-epub-bookshelf-book-path", text: book.file.parent?.path || "Vault 根目录" });
+      body.createDiv({ cls: "pavel-epub-bookshelf-book-path", text: book.file.parent?.path || t("Vault 根目录", "Vault root") });
       const meta = body.createDiv({ cls: "pavel-epub-bookshelf-book-meta" });
-      meta.createSpan({ text: book.completed ? "已读完" : relativeTime(book.lastOpenedAt) });
-      if (book.highlightCount) meta.createSpan({ text: `${book.highlightCount} 条标注` });
-      if (book.bookmarkCount) meta.createSpan({ text: `${book.bookmarkCount} 个书签` });
-      if (book.inReadingList) meta.createSpan({ text: "书单" });
+      meta.createSpan({ text: book.completed ? t("已读完", "Finished") : relativeTime(book.lastOpenedAt, language) });
+      if (book.highlightCount) meta.createSpan({ text: t(`${book.highlightCount} 条标注`, `${book.highlightCount} annotations`) });
+      if (book.bookmarkCount) meta.createSpan({ text: t(`${book.bookmarkCount} 个书签`, `${book.bookmarkCount} bookmarks`) });
+      if (book.inReadingList) meta.createSpan({ text: t("书单", "Reading list") });
       const progress = body.createDiv({ cls: "pavel-epub-bookshelf-progress" });
       progress.createDiv({ cls: "pavel-epub-bookshelf-progress-track" })
         .createDiv({ cls: "pavel-epub-bookshelf-progress-value" })
@@ -346,7 +358,7 @@ export class PavelEpubBookshelfView extends ItemView {
     const url = await this.getCoverUrl(file);
     if (!url || this.closed || !cover.isConnected) return;
     const image = cover.createEl("img", {
-      attr: { src: url, alt: `${file.basename} 封面`, loading: "lazy", decoding: "async" },
+      attr: { src: url, alt: this.text(`${file.basename} 封面`, `${file.basename} cover`), loading: "lazy", decoding: "async" },
     });
     image.addEventListener("load", () => {
       if (!image.isConnected) return;
@@ -422,48 +434,50 @@ export class PavelEpubBookshelfView extends ItemView {
   }
 
   private openBookMenu(event: MouseEvent, book: ShelfBook): void {
+    const t = (zh: string, en: string): string => this.text(zh, en);
+    const language = this.plugin.getReaderSettings().interfaceLanguage;
     const menu = new Menu();
     menu.addItem((item) => item
-      .setTitle("在新标签页打开")
+      .setTitle(t("在新标签页打开", "Open in new tab"))
       .setIcon("external-link")
       .onClick(() => void this.plugin.openEpub(book.file)));
     menu.addItem((item) => item
-      .setTitle("查看书籍完整信息")
+      .setTitle(t("查看书籍完整信息", "View book details"))
       .setIcon("info")
-      .onClick(() => new BookDetailsModal(book, this.app).open()));
+      .onClick(() => new BookDetailsModal(book, this.app, language).open()));
     menu.addItem((item) => item
-      .setTitle("重命名")
+      .setTitle(t("重命名", "Rename"))
       .setIcon("pencil")
-      .onClick(() => new RenameBookModal(this.app, book.file, (name) => this.renameBook(book.file, name)).open()));
+      .onClick(() => new RenameBookModal(this.app, book.file, language, (name) => this.renameBook(book.file, name)).open()));
     menu.addItem((item) => item
-      .setTitle(book.completed ? "标记为未读完" : "标记为已读完")
+      .setTitle(book.completed ? t("标记为未读完", "Mark as unfinished") : t("标记为已读完", "Mark as finished"))
       .setIcon("badge-check")
       .onClick(() => this.setCompleted(book.file, !book.completed)));
     menu.addItem((item) => item
-      .setTitle("自定义书籍封面")
+      .setTitle(t("自定义书籍封面", "Choose custom book cover"))
       .setIcon("image")
-      .onClick(() => new ImagePickerModal(this.app, (cover) => this.setCustomCover(book.file, cover)).open()));
+      .onClick(() => new ImagePickerModal(this.app, language, (cover) => this.setCustomCover(book.file, cover)).open()));
     if (this.plugin.store.getBook(book.file.path)?.customCoverPath) {
       menu.addItem((item) => item
-        .setTitle("恢复 EPUB 原封面")
+        .setTitle(t("恢复 EPUB 原封面", "Restore EPUB cover"))
         .setIcon("undo-2")
         .onClick(() => this.clearCustomCover(book.file)));
     }
     menu.addSeparator();
     menu.addItem((item) => item
-      .setTitle(book.inReadingList ? "从书单中移除" : "加入书单")
+      .setTitle(book.inReadingList ? t("从书单中移除", "Remove from reading list") : t("加入书单", "Add to reading list"))
       .setIcon("list-plus")
       .onClick(() => this.setReadingList(book.file, !book.inReadingList)));
     menu.addSeparator();
     menu.addItem((item) => item
-      .setTitle("从书架中移除")
+      .setTitle(t("从书架中移除", "Remove from bookshelf"))
       .setIcon("library-big")
       .onClick(() => this.hideFromBookshelf(book.file)));
     menu.addItem((item) => item
-      .setTitle("删除书籍文件")
+      .setTitle(t("删除书籍文件", "Delete book file"))
       .setIcon("trash-2")
       .setWarning(true)
-      .onClick(() => new DeleteBookModal(this.app, book.file, () => this.deleteBook(book.file)).open()));
+      .onClick(() => new DeleteBookModal(this.app, book.file, language, () => this.deleteBook(book.file)).open()));
     menu.showAtMouseEvent(event);
   }
 
@@ -477,7 +491,7 @@ export class PavelEpubBookshelfView extends ItemView {
     state.readingStats.completedAt = completed ? Date.now() : undefined;
     if (completed) state.readingStats.furthestFraction = 1;
     this.plugin.store.markChanged(0);
-    new Notice(completed ? "已标记为读完" : "已标记为未读完");
+    new Notice(completed ? this.text("已标记为读完", "Marked as finished") : this.text("已标记为未读完", "Marked as unfinished"));
     this.render();
   }
 
@@ -485,7 +499,7 @@ export class PavelEpubBookshelfView extends ItemView {
     const state = this.stateFor(file);
     state.inReadingList = inReadingList || undefined;
     this.plugin.store.markChanged(0);
-    new Notice(inReadingList ? "已加入书单" : "已从书单移除");
+    new Notice(inReadingList ? this.text("已加入书单", "Added to reading list") : this.text("已从书单移除", "Removed from reading list"));
     this.render();
   }
 
@@ -494,7 +508,7 @@ export class PavelEpubBookshelfView extends ItemView {
     state.customCoverPath = cover.path;
     this.plugin.store.markChanged(0);
     this.invalidateCover(file.path);
-    new Notice("已更新书籍封面");
+    new Notice(this.text("已更新书籍封面", "Book cover updated"));
     this.render();
   }
 
@@ -510,28 +524,28 @@ export class PavelEpubBookshelfView extends ItemView {
     const state = this.stateFor(file);
     state.hiddenFromBookshelf = true;
     this.plugin.store.markChanged(0);
-    new Notice("已从 OmniReader 书架中移除；文件仍保留在 Vault 中。");
+    new Notice(this.text("已从 OmniReader 书架中移除；文件仍保留在 Vault 中。", "Removed from the OmniReader bookshelf. The file remains in the Vault."));
     this.render();
   }
 
   private async renameBook(file: TFile, rawName: string): Promise<void> {
     const base = rawName.replace(/[\\/:*?"<>|]/g, "").replace(/\.epub$/i, "").trim();
-    if (!base) throw new Error("书名无效");
+    if (!base) throw new Error(this.text("书名无效", "Invalid book name"));
     const nextPath = normalizePath(`${file.parent?.path ? `${file.parent.path}/` : ""}${base}.epub`);
     if (nextPath === file.path) return;
-    if (this.app.vault.getAbstractFileByPath(nextPath)) throw new Error("同名文件已存在");
+    if (this.app.vault.getAbstractFileByPath(nextPath)) throw new Error(this.text("同名文件已存在", "A file with that name already exists"));
     await this.app.vault.rename(file, nextPath);
-    new Notice("书籍已重命名");
+    new Notice(this.text("书籍已重命名", "Book renamed"));
   }
 
   private async deleteBook(file: TFile): Promise<void> {
     try {
       await this.app.fileManager.trashFile(file);
       this.plugin.store.removeBook(file.path);
-      new Notice("书籍文件已移入系统回收站");
+      new Notice(this.text("书籍文件已移入系统回收站", "Book file moved to the system trash"));
     } catch (error) {
       console.error("[OmniReader] Could not delete EPUB", error);
-      new Notice("删除书籍文件失败");
+      new Notice(this.text("删除书籍文件失败", "Could not delete the book file"));
     }
   }
 
@@ -539,5 +553,9 @@ export class PavelEpubBookshelfView extends ItemView {
     const cached = this.coverCache.get(path);
     if (cached?.url) URL.revokeObjectURL(cached.url);
     this.coverCache.delete(path);
+  }
+
+  private text(zh: string, en: string): string {
+    return uiText(this.plugin.getReaderSettings().interfaceLanguage, zh, en);
   }
 }
