@@ -33,6 +33,42 @@ function normalizeEntryPath(value: string): string {
   return parts.join("/");
 }
 
+async function openArchive(
+  bytes: Uint8Array,
+  onProgress?: (progress: EpubLoadProgress) => void,
+) {
+  configure({ useWebWorkers: false });
+  const archive = new ZipReader(new BlobReader(new Blob([bytes], { type: "application/epub+zip" })));
+  try {
+    const entries = await archive.getEntries({
+      onprogress: (loaded: number, total: number) => onProgress?.({ phase: "archive", loaded, total }),
+    }) as ZipEntry[];
+    return { archive, entries };
+  } catch (error) {
+    await archive.close().catch(() => undefined);
+    throw error;
+  }
+}
+
+/**
+ * Confirm that a candidate is a readable EPUB archive before selecting it.
+ * Android storage bridges can briefly return a ZIP-looking but incomplete
+ * payload while a synced file is being materialized.
+ */
+export async function isReadableEpubArchive(bytes: Uint8Array): Promise<boolean> {
+  let opened: Awaited<ReturnType<typeof openArchive>> | null = null;
+  try {
+    opened = await openArchive(bytes);
+    return opened.entries.some(
+      (entry) => normalizeEntryPath(entry.filename) === "META-INF/container.xml",
+    );
+  } catch {
+    return false;
+  } finally {
+    if (opened) await opened.archive.close().catch(() => undefined);
+  }
+}
+
 /**
  * Open EPUB bytes through Foliate's archive primitives instead of handing an
  * opaque File back to the mobile WebView. This mirrors Weave's vault-backed
@@ -42,17 +78,7 @@ export async function createEpubBook(
   bytes: Uint8Array,
   onProgress?: (progress: EpubLoadProgress) => void,
 ): Promise<FoliateBook> {
-  configure({ useWebWorkers: false });
-  const archive = new ZipReader(new BlobReader(new Blob([bytes], { type: "application/epub+zip" })));
-  let entries: ZipEntry[];
-  try {
-    entries = await archive.getEntries({
-      onprogress: (loaded: number, total: number) => onProgress?.({ phase: "archive", loaded, total }),
-    }) as ZipEntry[];
-  } catch (error) {
-    await archive.close();
-    throw error;
-  }
+  const { archive, entries } = await openArchive(bytes, onProgress);
 
   const lookup = new Map<string, ZipEntry>();
   for (const entry of entries) {

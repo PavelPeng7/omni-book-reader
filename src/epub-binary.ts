@@ -9,12 +9,49 @@ export interface EpubBinaryVault {
   getResourcePath?(file: EpubBinaryFile): string;
 }
 
+export interface EpubBinaryReadOptions {
+  validate?: (bytes: Uint8Array) => Promise<boolean>;
+  retryDelaysMs?: readonly number[];
+  wait?: (delayMs: number) => Promise<void>;
+  isCancelled?: () => boolean;
+}
+
+function isArrayBuffer(value: unknown): value is ArrayBuffer {
+  return value instanceof ArrayBuffer
+    || Object.prototype.toString.call(value) === "[object ArrayBuffer]";
+}
+
 function toBytes(value: unknown): Uint8Array | null {
-  if (value instanceof ArrayBuffer) return new Uint8Array(value.slice(0));
+  if (isArrayBuffer(value)) return Uint8Array.from(new Uint8Array(value));
   if (ArrayBuffer.isView(value)) {
-    return new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+    return Uint8Array.from(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
   }
   if (Array.isArray(value)) return Uint8Array.from(value);
+
+  // Some Android/WebView bridges serialize typed arrays into plain objects.
+  if (value && typeof value === "object") {
+    const binary = value as {
+      buffer?: unknown;
+      byteOffset?: unknown;
+      byteLength?: unknown;
+      length?: unknown;
+      [index: number]: unknown;
+    };
+    if (isArrayBuffer(binary.buffer)) {
+      const offset = Number.isInteger(binary.byteOffset) ? Number(binary.byteOffset) : 0;
+      const available = binary.buffer.byteLength - offset;
+      const length = Number.isInteger(binary.byteLength) ? Number(binary.byteLength) : available;
+      if (offset >= 0 && length >= 0 && length <= available) {
+        return Uint8Array.from(new Uint8Array(binary.buffer, offset, length));
+      }
+    }
+    if (Number.isInteger(binary.length) && Number(binary.length) >= 0) {
+      const length = Number(binary.length);
+      const bytes = new Uint8Array(length);
+      for (let index = 0; index < length; index += 1) bytes[index] = Number(binary[index]);
+      return bytes;
+    }
+  }
   return null;
 }
 
@@ -42,32 +79,76 @@ function readResourceBinary(url: string): Promise<unknown> {
 }
 
 /**
- * Read EPUB bytes through every Android-compatible Obsidian path. Some mobile
- * WebViews intermittently return an incomplete payload from vault.readBinary
- * before their resource bridge has warmed up, so callers must try each result.
+ * Read EPUB bytes through every Android-compatible Obsidian path. Each payload
+ * is validated before it is selected, and failed rounds are retried briefly so
+ * Android has time to materialize a newly synced file.
  */
-export async function readEpubBinaryCandidates(vault: EpubBinaryVault, file: EpubBinaryFile): Promise<Uint8Array[]> {
-  const readers: Array<() => Promise<unknown>> = [
-    () => vault.readBinary(file),
+export async function readEpubBinaryCandidates(
+  vault: EpubBinaryVault,
+  file: EpubBinaryFile,
+  options: EpubBinaryReadOptions = {},
+): Promise<Uint8Array[]> {
+  const readers: Array<{ name: string; read: () => Promise<unknown> }> = [
+    { name: "vault", read: () => vault.readBinary(file) },
   ];
   if (typeof vault.adapter?.readBinary === "function") {
-    readers.push(() => vault.adapter!.readBinary!(file.path));
+    const readBinary = vault.adapter.readBinary.bind(vault.adapter);
+    readers.push({ name: "adapter", read: () => readBinary(file.path) });
   }
-  const resourcePath = vault.getResourcePath?.(file);
-  if (resourcePath) readers.push(() => readResourceBinary(resourcePath));
+  if (vault.getResourcePath) {
+    readers.push({
+      name: "resource",
+      read: async () => {
+        const resourcePath = vault.getResourcePath?.(file);
+        if (!resourcePath) throw new Error("Resource path is unavailable");
+        return readResourceBinary(resourcePath);
+      },
+    });
+  }
 
-  const candidates: Uint8Array[] = [];
-  for (const read of readers) {
-    try {
-      const bytes = toBytes(await read());
-      if (!bytes || !isZip(bytes)) continue;
-      candidates.push(bytes);
-    } catch {
-      // Continue with the next Obsidian file bridge.
+  const validate = options.validate ?? (async (bytes: Uint8Array) => isZip(bytes));
+  const retryDelays = options.retryDelaysMs ?? [0, 250, 1_000, 2_500];
+  const wait = options.wait ?? ((delayMs: number) => new Promise<void>(
+    (resolve) => window.setTimeout(resolve, delayMs),
+  ));
+  const diagnostics = new Map<string, string>();
+
+  for (const delayMs of retryDelays) {
+    if (options.isCancelled?.()) throw new Error("EPUB loading was cancelled");
+    if (delayMs > 0) await wait(delayMs);
+
+    const candidates: Uint8Array[] = [];
+    for (const reader of readers) {
+      if (options.isCancelled?.()) throw new Error("EPUB loading was cancelled");
+      try {
+        const bytes = toBytes(await reader.read());
+        if (!bytes) {
+          diagnostics.set(reader.name, "unsupported binary response");
+          continue;
+        }
+        if (!isZip(bytes)) {
+          diagnostics.set(reader.name, `${bytes.byteLength} bytes, missing ZIP header`);
+          continue;
+        }
+        if (!await validate(bytes)) {
+          diagnostics.set(reader.name, `${bytes.byteLength} bytes, incomplete EPUB archive`);
+          continue;
+        }
+        diagnostics.set(reader.name, `${bytes.byteLength} bytes, valid`);
+        candidates.push(bytes);
+        if (bytes.byteLength === file.stat.size) return [bytes];
+      } catch (error) {
+        diagnostics.set(reader.name, error instanceof Error ? error.message : "read failed");
+      }
     }
+
+    candidates.sort((a, b) => {
+      const exact = Number(b.byteLength === file.stat.size) - Number(a.byteLength === file.stat.size);
+      return exact || b.byteLength - a.byteLength;
+    });
+    if (candidates.length) return candidates;
   }
 
-  candidates.sort((a, b) => Number(b.byteLength === file.stat.size) - Number(a.byteLength === file.stat.size));
-  if (!candidates.length) throw new Error(`Unable to read a valid EPUB ZIP payload: ${file.path}`);
-  return candidates;
+  const detail = [...diagnostics].map(([name, result]) => `${name}: ${result}`).join("; ");
+  throw new Error(`Unable to read a complete EPUB payload: ${file.path}${detail ? ` (${detail})` : ""}`);
 }

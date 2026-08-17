@@ -14,7 +14,12 @@ import type { AnnotationDocumentInput } from "./annotation-documents";
 import { exportChapterMarkdown } from "./chapter-export";
 import { readEpubBinaryCandidates } from "./epub-binary";
 import { extractEpubCover } from "./epub-cover";
-import { bookLoadTimeout, createEpubBook, withLoadTimeout } from "./epub-loader";
+import {
+  bookLoadTimeout,
+  createEpubBook,
+  isReadableEpubArchive,
+  withLoadTimeout,
+} from "./epub-loader";
 import { uiLocale, uiText } from "./i18n";
 import { extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
 import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
@@ -879,7 +884,10 @@ export class PavelEpubReaderView extends FileView {
     );
 
     try {
-      const binaries = await readEpubBinaryCandidates(this.app.vault, file);
+      const binaries = await readEpubBinaryCandidates(this.app.vault, file, {
+        validate: isReadableEpubArchive,
+        isCancelled: () => generation !== this.loadGeneration,
+      });
       if (generation !== this.loadGeneration) return;
       let reader: FoliateViewElement | null = null;
       let openedSource: File | null = null;
