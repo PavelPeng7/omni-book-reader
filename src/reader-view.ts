@@ -1118,22 +1118,31 @@ export class PavelEpubReaderView extends FileView {
   }
 
   private async restorePosition(reader: FoliateViewElement, state: BookState): Promise<void> {
-    if (!state.position) {
-      await reader.init({ showTextStart: true });
-      return;
-    }
-    try {
-      if (!reader.resolveNavigation(state.position.cfi)) throw new Error("Stored CFI cannot be resolved");
-      await reader.init({ lastLocation: state.position.cfi, showTextStart: false });
-    } catch (error) {
-      console.warn("[OmniReader] Stored CFI could not be restored", error);
-      new Notice(this.text("原阅读位置已失效，正在按进度恢复", "The saved location is no longer valid. Restoring by progress."));
+    const cfi = state.position?.cfi?.trim();
+    if (cfi) {
       try {
-        await reader.goToFraction(state.position.fraction);
-      } catch {
-        await reader.init({ showTextStart: true });
+        if (!reader.resolveNavigation(cfi)) throw new Error("Stored CFI cannot be resolved");
+        await reader.goTo(cfi);
+        return;
+      } catch (error) {
+        console.warn("[OmniReader] Stored CFI could not be restored", error);
+        new Notice(this.text("原阅读位置已失效，正在按进度恢复", "The saved location is no longer valid. Restoring by progress."));
       }
     }
+
+    const fraction = state.position?.fraction;
+    if (typeof fraction === "number" && Number.isFinite(fraction)) {
+      try {
+        await reader.goToFraction(Math.max(0, Math.min(1, fraction)));
+        return;
+      } catch (error) {
+        console.warn("[OmniReader] Progress position could not be restored", error);
+      }
+    }
+
+    // Match Weave's final fallback: navigate the opened view directly instead
+    // of re-running Foliate's init lifecycle after the renderer already exists.
+    await reader.goToTextStart();
   }
 
   private attachDocumentEvents(document: Document, sectionIndex: number): void {

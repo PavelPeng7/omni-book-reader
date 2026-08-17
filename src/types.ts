@@ -155,6 +155,7 @@ export interface FoliateViewElement extends HTMLElement {
   goRight(): Promise<void> | void;
   prev(): Promise<void> | void;
   next(): Promise<void> | void;
+  goToTextStart(): Promise<void>;
   goTo(target: string | number): Promise<unknown>;
   goToFraction(fraction: number): Promise<void>;
   select(target: string): Promise<void>;
