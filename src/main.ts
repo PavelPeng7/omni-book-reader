@@ -178,7 +178,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
       id: "toggle-focus-paragraph",
       checkCallback: (checking) => {
         const view = this.getActiveReader();
-        if (!checking) view?.toggleFocusMode();
+        if (!checking) void view?.toggleFocusMode();
         return Boolean(view);
       },
     }, "OmniReader：切换沉浸式阅读", "OmniReader: Toggle immersive reading");

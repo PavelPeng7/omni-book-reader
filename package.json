@@ -1,15 +1,17 @@
 {
   "name": "omnireader",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
     "check": "tsc --noEmit",
+    "lint": "eslint src package.json --max-warnings 0",
     "test": "vitest run",
     "package": "node scripts/package-release.mjs",
-    "release:check": "npm run check && npm test && npm run build && npm run package"
+    "validate:release": "node scripts/validate-release.mjs",
+    "release:check": "npm run lint && npm run check && npm test && npm run build && npm run validate:release && npm run package"
   },
   "engines": {
     "node": ">=20"
@@ -19,11 +21,16 @@
     "foliate-js": "1.0.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@eslint/json": "^0.14.0",
     "@types/node": "22.15.29",
     "esbuild": "0.25.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-obsidianmd": "0.4.1",
     "jsdom": "26.1.0",
     "obsidian": "1.13.1",
     "typescript": "5.8.3",
+    "typescript-eslint": "^8.67.0",
     "vitest": "3.2.4"
   }
 }

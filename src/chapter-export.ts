@@ -6,6 +6,7 @@ import type { ReaderHighlight } from "./types";
 
 const START = "<!-- pavel-epub-reader:chapter:start -->";
 const END = "<!-- pavel-epub-reader:chapter:end -->";
+const MARKDOWN_HARD_BREAK = [" ", " ", "\n"].join("");
 
 function isFile(value: TAbstractFile | null): value is TFile {
   return Boolean(value && "extension" in value);
@@ -23,7 +24,7 @@ function inline(node: Node): string {
   if (element.matches("strong,b")) return `**${content}**`;
   if (element.matches("em,i")) return `*${content}*`;
   if (element.matches("code")) return `\`${content.replace(/`/g, "\\`")}\``;
-  if (element.matches("br")) return "  \n";
+  if (element.matches("br")) return MARKDOWN_HARD_BREAK;
   if (element.matches("a")) return content;
   return content;
 }
@@ -100,7 +101,7 @@ export async function exportChapterMarkdown(input: ChapterExportInput): Promise<
     }).join("\n\n---\n\n");
   const generated = [
     `# ${input.chapter}`,
-    `书籍：[[${input.sourceFile.path}]]${input.author ? `  \n作者：${input.author}` : ""}`,
+    `书籍：[[${input.sourceFile.path}]]${input.author ? `${MARKDOWN_HARD_BREAK}作者：${input.author}` : ""}`,
     body.trim(),
     annotations ? `## 当前章节标注\n\n${annotations}` : "",
   ].filter(Boolean).join("\n\n");

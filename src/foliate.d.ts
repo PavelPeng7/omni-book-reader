@@ -41,9 +41,9 @@ declare module "foliate-js/footnotes.js" {
 
 declare module "foliate-js/overlayer.js" {
   export class Overlayer {
-    static highlight(rects: DOMRect[], options?: { color?: string; padding?: number }): SVGElement;
-    static underline(rects: DOMRect[], options?: { color?: string; width?: number; padding?: number; writingMode?: string }): SVGElement;
-    static strikethrough(rects: DOMRect[], options?: { color?: string; width?: number; writingMode?: string }): SVGElement;
-    static squiggly(rects: DOMRect[], options?: { color?: string; width?: number; padding?: number; writingMode?: string }): SVGElement;
+    static highlight(this: void, rects: DOMRect[], options?: { color?: string; padding?: number }): SVGElement;
+    static underline(this: void, rects: DOMRect[], options?: { color?: string; width?: number; padding?: number; writingMode?: string }): SVGElement;
+    static strikethrough(this: void, rects: DOMRect[], options?: { color?: string; width?: number; writingMode?: string }): SVGElement;
+    static squiggly(this: void, rects: DOMRect[], options?: { color?: string; width?: number; padding?: number; writingMode?: string }): SVGElement;
   }
 }

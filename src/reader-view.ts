@@ -34,7 +34,6 @@ import type {
   FoliateBook,
   FoliateLocation,
   FoliateSearchItem,
-  FoliateSearchResult,
   FoliateTocItem,
   FoliateViewElement,
   HighlightColor,
@@ -903,9 +902,8 @@ export class PavelEpubReaderView extends FileView {
           type: "application/epub+zip",
           lastModified: file.stat.mtime,
         });
-        const candidate = document.createElement("foliate-view") as FoliateViewElement;
+        const candidate = this.viewerEl.createEl("foliate-view");
         candidate.addClass("pavel-epub-foliate-view", "is-loading");
-        this.viewerEl.append(candidate);
         let book: FoliateBook | null = null;
         try {
           book = await withLoadTimeout(createEpubBook(binary, ({ phase, loaded, total }) => {
@@ -958,7 +956,11 @@ export class PavelEpubReaderView extends FileView {
           candidate.remove();
         }
       }
-      if (!reader) throw lastOpenError ?? new Error("Unable to open EPUB payload");
+      if (!reader) {
+        throw lastOpenError instanceof Error
+          ? lastOpenError
+          : new Error("Unable to open EPUB payload", { cause: lastOpenError });
+      }
       if (generation !== this.loadGeneration) {
         reader.close?.();
         return;
@@ -1020,7 +1022,7 @@ export class PavelEpubReaderView extends FileView {
       if (!blob?.size || generation !== this.loadGeneration || !coverEl.isConnected) return;
       const url = URL.createObjectURL(blob);
       this.sidebarCoverUrl = url;
-      const image = document.createElement("img");
+      const image = coverEl.createEl("img");
       image.alt = this.text(`${this.bookTitle} 封面`, `${this.bookTitle} cover`);
       image.decoding = "async";
       image.src = url;
@@ -1035,7 +1037,6 @@ export class PavelEpubReaderView extends FileView {
           this.sidebarCoverUrl = null;
         }
       }, { once: true });
-      coverEl.append(image);
     } catch (error) {
       console.warn("[OmniReader] Could not load reader sidebar cover", error);
     }
@@ -1178,8 +1179,7 @@ export class PavelEpubReaderView extends FileView {
       const target = event.target as Element | null;
       const image = target?.closest?.("img");
       if (!image) return;
-      const imageElement = image as HTMLImageElement;
-      const source = imageElement.currentSrc || imageElement.src || image.getAttribute("src") || "";
+      const source = image.currentSrc || image.src || image.getAttribute("src") || "";
       if (!source.startsWith("blob:") && !source.startsWith("data:")) return;
       event.preventDefault();
       event.stopPropagation();
@@ -1826,7 +1826,7 @@ export class PavelEpubReaderView extends FileView {
           this.searchStatusEl.setText(this.text(`正在搜索 ${percentage(result.progress)}…已找到 ${count} 条`, `Searching ${percentage(result.progress)}… ${count} found`));
           continue;
         }
-        const group = result as Extract<FoliateSearchResult, { subitems: FoliateSearchItem[] }>;
+        const group = result;
         for (const item of group.subitems) {
           if (count >= 500) {
             truncated = true;
