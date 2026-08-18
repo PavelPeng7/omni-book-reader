@@ -26,6 +26,13 @@ if (manifestVersion !== packageVersion) {
   );
 }
 
+const versions = await readJson("versions.json");
+if (versions[manifestVersion] !== manifest.minAppVersion) {
+  throw new Error(
+    `versions.json must map ${manifestVersion} to minAppVersion ${manifest.minAppVersion}.`,
+  );
+}
+
 if (process.env.GITHUB_ACTIONS === "true" && process.env.GITHUB_REF_TYPE !== "tag") {
   throw new Error("GitHub releases must be triggered by a version tag.");
 }
