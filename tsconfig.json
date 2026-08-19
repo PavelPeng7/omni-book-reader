@@ -3,7 +3,7 @@
     "baseUrl": ".",
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "Bundler",
+    "moduleResolution": "node",
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -12,7 +12,7 @@
     "allowJs": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "types": ["node", "vitest/globals"]
+    "types": []
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "tests/**/*.ts", "vitest.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts"]
 }
