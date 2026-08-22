@@ -11,7 +11,7 @@ automated release review.
 
 ## Symptom
 
-In the Obsidian developer dashboard (obsidian.md -> Plugins -> Omni Reader),
+In the Obsidian developer dashboard (obsidian.md -> Plugins -> Omni Book Reader),
 the release review list showed:
 
 | Date       | Version | Status    |

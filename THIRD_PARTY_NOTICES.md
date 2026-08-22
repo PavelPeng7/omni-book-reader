@@ -1,6 +1,6 @@
 # Third-party notices
 
-Pavel EPUB Reader bundles the following open-source software:
+Omni Book Reader bundles the following open-source software:
 
 - `foliate-js` 1.0.1 — MIT License, Copyright John Factotum and contributors.
 - `zip.js` (vendored by foliate-js) — BSD 3-Clause License.

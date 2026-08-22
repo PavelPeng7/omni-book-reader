@@ -1,9 +1,9 @@
 import { App, Menu, Modal, Notice, Plugin, TFile, setIcon, type Command } from "obsidian";
 import { AnnotationDocumentService, type AnnotationDocumentInput } from "./annotation-documents";
-import { EPUB_BOOKSHELF_VIEW_TYPE, PavelEpubBookshelfView } from "./bookshelf-view";
+import { OMNI_BOOK_READER_BOOKSHELF_VIEW_TYPE, OmniBookReaderBookshelfView } from "./bookshelf-view";
 import { uiLocale, uiText } from "./i18n";
-import { EPUB_VIEW_TYPE, PavelEpubReaderView } from "./reader-view";
-import { PavelEpubSettingTab } from "./settings-ui";
+import { OMNI_BOOK_READER_VIEW_TYPE, OmniBookReaderView } from "./reader-view";
+import { OmniBookReaderSettingTab } from "./settings-ui";
 import { ReaderDataStore } from "./store";
 import type { ReaderSettings } from "./types";
 import { isValidCfi, normalizeVaultPath } from "./utils";
@@ -26,20 +26,20 @@ class RecentReadingModal extends Modal {
       .sort(([, left], [, right]) => (right.readingStats?.lastOpenedAt ?? 0) - (left.readingStats?.lastOpenedAt ?? 0))
       .slice(0, 20);
     if (!books.length) {
-      this.contentEl.createDiv({ cls: "pavel-epub-empty", text: t("还没有阅读记录", "No reading history yet") });
+      this.contentEl.createDiv({ cls: "omni-book-reader-empty", text: t("还没有阅读记录", "No reading history yet") });
       return;
     }
-    const list = this.contentEl.createDiv({ cls: "pavel-epub-recent-list" });
+    const list = this.contentEl.createDiv({ cls: "omni-book-reader-recent-list" });
     for (const [path, state] of books) {
       const file = this.app.vault.getAbstractFileByPath(path);
       if (!(file instanceof TFile) || file.extension.toLowerCase() !== "epub") continue;
-      const button = list.createEl("button", { cls: "pavel-epub-recent-item", attr: { type: "button" } });
-      const icon = button.createSpan({ cls: "pavel-epub-recent-icon" });
+      const button = list.createEl("button", { cls: "omni-book-reader-recent-item", attr: { type: "button" } });
+      const icon = button.createSpan({ cls: "omni-book-reader-recent-icon" });
       setIcon(icon, "book-open");
-      const text = button.createSpan({ cls: "pavel-epub-recent-text" });
-      text.createSpan({ cls: "pavel-epub-recent-title", text: file.basename });
+      const text = button.createSpan({ cls: "omni-book-reader-recent-text" });
+      text.createSpan({ cls: "omni-book-reader-recent-title", text: file.basename });
       text.createSpan({
-        cls: "pavel-epub-recent-meta",
+        cls: "omni-book-reader-recent-meta",
         text: `${progressText(state.position?.fraction ?? state.readingStats?.furthestFraction ?? 0)} · ${new Date(state.readingStats!.lastOpenedAt).toLocaleString(uiLocale(language))}`,
       });
       button.addEventListener("click", () => {
@@ -54,7 +54,7 @@ class RecentReadingModal extends Modal {
   }
 }
 
-export default class PavelEpubReaderPlugin extends Plugin {
+export default class OmniBookReaderPlugin extends Plugin {
   store!: ReaderDataStore;
   private annotationDocuments!: AnnotationDocumentService;
   private commandLabels: Array<{ command: Command; zh: string; en: string }> = [];
@@ -62,7 +62,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
 
   async onload(): Promise<void> {
     this.store = new ReaderDataStore(this, (error) => {
-      console.error("[OmniReader] Failed to persist data", error);
+      console.error("[Omni Book Reader] Failed to persist data", error);
     });
     await this.store.load();
     const t = (zh: string, en: string): string => this.text(zh, en);
@@ -72,19 +72,19 @@ export default class PavelEpubReaderPlugin extends Plugin {
         Object.values(this.store.snapshot.books).map((state) => state.annotationDocuments),
       );
     } catch (error) {
-      console.error("[OmniReader] Could not migrate legacy CFI links", error);
+      console.error("[Omni Book Reader] Could not migrate legacy CFI links", error);
     }
 
-    this.registerView(EPUB_VIEW_TYPE, (leaf) => new PavelEpubReaderView(leaf, this));
-    this.registerView(EPUB_BOOKSHELF_VIEW_TYPE, (leaf) => new PavelEpubBookshelfView(leaf, this));
+    this.registerView(OMNI_BOOK_READER_VIEW_TYPE, (leaf) => new OmniBookReaderView(leaf, this));
+    this.registerView(OMNI_BOOK_READER_BOOKSHELF_VIEW_TYPE, (leaf) => new OmniBookReaderBookshelfView(leaf, this));
     try {
-      this.registerExtensions(["epub"], EPUB_VIEW_TYPE);
+      this.registerExtensions(["epub"], OMNI_BOOK_READER_VIEW_TYPE);
     } catch (error) {
-      console.error("[OmniReader] Could not register .epub extension", error);
-      new Notice(t("OmniReader 无法接管 .epub：请停用其他 EPUB 阅读插件后重载 Obsidian", "OmniReader could not register .epub files. Disable other EPUB reader plugins and reload Obsidian."));
+      console.error("[Omni Book Reader] Could not register .epub extension", error);
+      new Notice(t("Omni Book Reader 无法接管 .epub：请停用其他 EPUB 阅读插件后重载 Obsidian", "Omni Book Reader could not register .epub files. Disable other EPUB reader plugins and reload Obsidian."));
     }
 
-    this.registerObsidianProtocolHandler("pavel-epub-reader", (params) => {
+    this.registerObsidianProtocolHandler("omni-book-reader", (params) => {
       void this.openProtocolLocation(params.path, params.cfi, params.sourceVault ?? params.vault);
     });
     this.registerDomEvent(document, "click", (event: MouseEvent) => {
@@ -92,7 +92,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
       if (!(target instanceof Element)) return;
       const anchor = target.closest("a");
       const href = anchor?.getAttribute("href") ?? "";
-      if (!href.startsWith("obsidian://pavel-epub-reader?")) return;
+      if (!href.startsWith("obsidian://omni-book-reader?")) return;
       let url: URL;
       try {
         url = new URL(href);
@@ -116,18 +116,18 @@ export default class PavelEpubReaderPlugin extends Plugin {
         if (!checking && available) void this.openEpub(file);
         return available;
       },
-    }, "OmniReader：打开当前 EPUB", "OmniReader: Open current EPUB");
+    }, "Omni Book Reader：打开当前 EPUB", "Omni Book Reader: Open current EPUB");
 
     this.addUiCommand({
       id: "open-epub-bookshelf",
       callback: () => void this.openBookshelf(),
-    }, "OmniReader：打开书架", "OmniReader: Open bookshelf");
-    this.bookshelfRibbonEl = this.addRibbonIcon("library", t("打开 OmniReader 书架", "Open OmniReader bookshelf"), () => void this.openBookshelf());
+    }, "Omni Book Reader：打开书架", "Omni Book Reader: Open bookshelf");
+    this.bookshelfRibbonEl = this.addRibbonIcon("library", t("打开 Omni Book Reader 书架", "Open Omni Book Reader bookshelf"), () => void this.openBookshelf());
 
     this.addUiCommand({
       id: "open-recent-epub",
       callback: () => new RecentReadingModal(this.app, this.store).open(),
-    }, "OmniReader：最近阅读与继续阅读", "OmniReader: Recent and continue reading");
+    }, "Omni Book Reader：最近阅读与继续阅读", "Omni Book Reader: Recent and continue reading");
 
     this.addUiCommand({
       id: "toggle-reader-sidebar",
@@ -136,7 +136,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
         if (!checking) view?.toggleSidebar();
         return Boolean(view);
       },
-    }, "OmniReader：切换阅读侧栏", "OmniReader: Toggle reader sidebar");
+    }, "Omni Book Reader：切换阅读侧栏", "Omni Book Reader: Toggle reader sidebar");
 
     this.addUiCommand({
       id: "toggle-current-bookmark",
@@ -145,7 +145,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
         if (!checking) view?.toggleBookmark();
         return Boolean(view);
       },
-    }, "OmniReader：添加/移除当前位置书签", "OmniReader: Add or remove bookmark here");
+    }, "Omni Book Reader：添加/移除当前位置书签", "Omni Book Reader: Add or remove bookmark here");
 
     this.addUiCommand({
       id: "export-current-highlights",
@@ -154,7 +154,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
         if (!checking && view) void view.exportAnnotations("highlights");
         return Boolean(view);
       },
-    }, "OmniReader：导出当前 EPUB 高亮摘抄", "OmniReader: Export highlights from current EPUB");
+    }, "Omni Book Reader：导出当前 EPUB 高亮摘抄", "Omni Book Reader: Export highlights from current EPUB");
 
     this.addUiCommand({
       id: "export-current-notes",
@@ -163,7 +163,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
         if (!checking && view) void view.exportAnnotations("notes");
         return Boolean(view);
       },
-    }, "OmniReader：导出当前 EPUB 笔记", "OmniReader: Export notes from current EPUB");
+    }, "Omni Book Reader：导出当前 EPUB 笔记", "Omni Book Reader: Export notes from current EPUB");
 
     this.addUiCommand({
       id: "export-current-chapter",
@@ -172,7 +172,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
         if (!checking && view) void view.exportCurrentChapter();
         return Boolean(view);
       },
-    }, "OmniReader：导出当前 EPUB 章节为 Markdown", "OmniReader: Export current EPUB chapter as Markdown");
+    }, "Omni Book Reader：导出当前 EPUB 章节为 Markdown", "Omni Book Reader: Export current EPUB chapter as Markdown");
 
     this.addUiCommand({
       id: "toggle-focus-paragraph",
@@ -181,7 +181,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
         if (!checking) void view?.toggleFocusMode();
         return Boolean(view);
       },
-    }, "OmniReader：切换沉浸式阅读", "OmniReader: Toggle immersive reading");
+    }, "Omni Book Reader：切换沉浸式阅读", "Omni Book Reader: Toggle immersive reading");
 
     this.addUiCommand({
       id: "show-reading-stats",
@@ -190,7 +190,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
         if (!checking) view?.openReadingStats();
         return Boolean(view);
       },
-    }, "OmniReader：显示阅读统计", "OmniReader: Show reading statistics");
+    }, "Omni Book Reader：显示阅读统计", "Omni Book Reader: Show reading statistics");
 
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
       if (file instanceof TFile && file.extension.toLowerCase() === "epub") {
@@ -204,8 +204,8 @@ export default class PavelEpubReaderPlugin extends Plugin {
       menu.addSeparator();
       menu.addItem((item) => item
         .setTitle(state?.hiddenFromBookshelf
-          ? this.text("OmniReader：加入书架", "OmniReader: Add to bookshelf")
-          : this.text("OmniReader：从书架中移除", "OmniReader: Remove from bookshelf"))
+          ? this.text("Omni Book Reader：加入书架", "Omni Book Reader: Add to bookshelf")
+          : this.text("Omni Book Reader：从书架中移除", "Omni Book Reader: Remove from bookshelf"))
         .setIcon(state?.hiddenFromBookshelf ? "library-big" : "eye-off")
         .onClick(() => {
           const book = this.store.ensureBook(file.path, { size: file.stat.size, mtime: file.stat.mtime });
@@ -213,12 +213,12 @@ export default class PavelEpubReaderPlugin extends Plugin {
           this.store.markChanged(0);
           this.refreshBookshelves();
           new Notice(book.hiddenFromBookshelf
-            ? this.text("已从 OmniReader 书架中移除", "Removed from the OmniReader bookshelf")
-            : this.text("已加入 OmniReader 书架", "Added to the OmniReader bookshelf"));
+            ? this.text("已从 Omni Book Reader 书架中移除", "Removed from the Omni Book Reader bookshelf")
+            : this.text("已加入 Omni Book Reader 书架", "Added to the Omni Book Reader bookshelf"));
         }));
     }));
 
-    this.addSettingTab(new PavelEpubSettingTab(this.app, this));
+    this.addSettingTab(new OmniBookReaderSettingTab(this.app, this));
   }
 
   onunload(): void {
@@ -238,8 +238,8 @@ export default class PavelEpubReaderPlugin extends Plugin {
       this.refreshBookshelves();
       this.refreshRegisteredLabels();
     }
-    for (const leaf of this.app.workspace.getLeavesOfType(EPUB_VIEW_TYPE)) {
-      if (leaf.view instanceof PavelEpubReaderView) {
+    for (const leaf of this.app.workspace.getLeavesOfType(OMNI_BOOK_READER_VIEW_TYPE)) {
+      if (leaf.view instanceof OmniBookReaderView) {
         if (languageChanged) leaf.view.refreshLanguage();
         else leaf.view.applySettings();
       }
@@ -257,24 +257,24 @@ export default class PavelEpubReaderPlugin extends Plugin {
   async openEpub(file: TFile): Promise<void> {
     const leaf = this.app.workspace.getLeaf(true);
     await leaf.setViewState({
-      type: EPUB_VIEW_TYPE,
+      type: OMNI_BOOK_READER_VIEW_TYPE,
       state: { file: file.path },
       active: true,
     });
   }
 
   private async openBookshelf(): Promise<void> {
-    let leaf = this.app.workspace.getLeavesOfType(EPUB_BOOKSHELF_VIEW_TYPE)[0];
+    let leaf = this.app.workspace.getLeavesOfType(OMNI_BOOK_READER_BOOKSHELF_VIEW_TYPE)[0];
     if (!leaf) {
       leaf = this.app.workspace.getLeftLeaf(false) ?? this.app.workspace.getLeaf(true);
-      await leaf.setViewState({ type: EPUB_BOOKSHELF_VIEW_TYPE, active: true });
+      await leaf.setViewState({ type: OMNI_BOOK_READER_BOOKSHELF_VIEW_TYPE, active: true });
     }
     await this.app.workspace.revealLeaf(leaf);
   }
 
   private refreshBookshelves(): void {
-    for (const leaf of this.app.workspace.getLeavesOfType(EPUB_BOOKSHELF_VIEW_TYPE)) {
-      if (leaf.view instanceof PavelEpubBookshelfView) leaf.view.refresh();
+    for (const leaf of this.app.workspace.getLeavesOfType(OMNI_BOOK_READER_BOOKSHELF_VIEW_TYPE)) {
+      if (leaf.view instanceof OmniBookReaderBookshelfView) leaf.view.refresh();
     }
   }
 
@@ -297,16 +297,16 @@ export default class PavelEpubReaderPlugin extends Plugin {
     try {
       const leaf = this.app.workspace.getLeaf(true);
       await leaf.openFile(file);
-      if (leaf.view instanceof PavelEpubReaderView) await leaf.view.navigateToCfi(cfi);
+      if (leaf.view instanceof OmniBookReaderView) await leaf.view.navigateToCfi(cfi);
       else new Notice(this.text("无法创建 EPUB 阅读视图", "Could not create the EPUB reader view"));
     } catch (error) {
-      console.error("[OmniReader] Failed to open CFI link", error);
+      console.error("[Omni Book Reader] Failed to open CFI link", error);
       new Notice(this.text("打开 EPUB 原文位置失败", "Could not open the EPUB source location"));
     }
   }
 
-  private getActiveReader(): PavelEpubReaderView | null {
-    const view = this.app.workspace.getActiveViewOfType(PavelEpubReaderView);
+  private getActiveReader(): OmniBookReaderView | null {
+    const view = this.app.workspace.getActiveViewOfType(OmniBookReaderView);
     return view ?? null;
   }
 
@@ -322,7 +322,7 @@ export default class PavelEpubReaderPlugin extends Plugin {
   private refreshRegisteredLabels(): void {
     for (const entry of this.commandLabels) entry.command.name = this.text(entry.zh, entry.en);
     if (!this.bookshelfRibbonEl) return;
-    const label = this.text("打开 OmniReader 书架", "Open OmniReader bookshelf");
+    const label = this.text("打开 Omni Book Reader 书架", "Open Omni Book Reader bookshelf");
     this.bookshelfRibbonEl.setAttribute("aria-label", label);
     this.bookshelfRibbonEl.setAttribute("title", label);
   }

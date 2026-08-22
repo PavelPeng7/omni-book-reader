@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { extractEpubCover } from "../src/epub-cover";
 import { createEpubBook } from "../src/epub-loader";
 
-const fixtureVault = process.env.OMNIREADER_E2E_VAULT;
+const fixtureVault = process.env.OMNI_BOOK_READER_E2E_VAULT;
 const integrationDescribe = fixtureVault ? describe : describe.skip;
 
 if (fixtureVault) Object.defineProperty(globalThis, "Blob", { value: Blob, configurable: true });

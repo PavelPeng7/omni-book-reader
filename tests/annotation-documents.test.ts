@@ -33,13 +33,13 @@ describe("annotation documents", () => {
     const highlights = renderHighlightDocument("测试书", "测试作者", [item], options);
     const notes = renderNoteDocument("测试书", "测试作者", [item], options);
 
-    expect(highlights).toContain("# Omni Reader - Highlights");
+    expect(highlights).toContain("# Omni Book Reader - Highlights");
     expect(highlights).toContain("### 第一章\n\n> 被高亮的原文");
     expect(highlights).not.toContain("我的想法");
-    expect(notes).toContain("# Omni Reader - Notes");
+    expect(notes).toContain("# Omni Book Reader - Notes");
     expect(notes).toContain("**Note:** 我的想法");
     expect(notes).toContain("Date: 2026-07-19 | Color: #FFD54F | Style: 高亮 | Tags: 原型");
-    expect(notes).toContain("obsidian://pavel-epub-reader?sourceVault=");
+    expect(notes).toContain("obsidian://omni-book-reader?sourceVault=");
     expect(notes).not.toMatch(/[?&]vault=/);
   });
 
@@ -57,14 +57,14 @@ describe("annotation documents", () => {
     expect(second).toContain("更新后的摘抄");
     expect(second).toContain("## 我的结论\n不会被插件覆盖");
     expect(second).not.toContain("被高亮的原文");
-    expect(second.match(/pavel-epub-reader:highlights:start/g)).toHaveLength(1);
+    expect(second.match(/omni-book-reader:highlights:start/g)).toHaveLength(1);
     expect(generated).toContain("# 测试书");
     expect(generated).toContain("导出：2026-07-19");
     const cfiLink = buildCfiLink("Vault", "书籍/测试书.epub", highlight().cfi);
     expect(cfiLink).toContain("sourceVault=Vault");
     expect(cfiLink).not.toMatch(/[?&]vault=/);
     expect(cfiLink).toContain("cfi=epubcfi%28");
-    expect(() => mergeManagedDocument("<!-- pavel-epub-reader:highlights:start -->\n损坏", "highlights", generated))
+    expect(() => mergeManagedDocument("<!-- omni-book-reader:highlights:start -->\n损坏", "highlights", generated))
       .toThrow("受控区块标记不完整");
   });
 
@@ -163,7 +163,7 @@ describe("annotation documents", () => {
     expect(vault.modify).toHaveBeenCalledTimes(1);
     expect(entries.get(paths!.notePath)?.content).toContain("**Note:** 后来添加的笔记");
     expect(entries.get(paths!.notePath)?.content).toContain("书籍：测试书");
-    expect(entries.get(paths!.highlightPath)?.content).toContain("pavel-epub-reader:highlights:start");
+    expect(entries.get(paths!.highlightPath)?.content).toContain("omni-book-reader:highlights:start");
 
     const highlightDocument = entries.get(paths!.highlightPath)!;
     highlightDocument.content = highlightDocument.content!.replace("?sourceVault=", "?vault=");

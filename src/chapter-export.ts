@@ -4,8 +4,8 @@ import { buildCfiLink } from "./annotation-documents";
 import { ensureVaultFolder, extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
 import type { ReaderHighlight } from "./types";
 
-const START = "<!-- pavel-epub-reader:chapter:start -->";
-const END = "<!-- pavel-epub-reader:chapter:end -->";
+const START = "<!-- omni-book-reader:chapter:start -->";
+const END = "<!-- omni-book-reader:chapter:end -->";
 const MARKDOWN_HARD_BREAK = [" ", " ", "\n"].join("");
 
 function isFile(value: TAbstractFile | null): value is TFile {

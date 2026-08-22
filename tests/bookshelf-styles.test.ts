@@ -7,7 +7,7 @@ const styles = readFileSync(resolve(process.cwd(), "styles.css"), "utf8");
 describe("bookshelf mobile scrolling", () => {
   it("makes Obsidian's bookshelf view-content the native vertical scroll container", () => {
     const rule = styles.match(
-      /\.pavel-epub-bookshelf-container \.view-content\.pavel-epub-bookshelf\s*\{([^}]*)\}/,
+      /\.omni-book-reader-bookshelf-container \.view-content\.omni-book-reader-bookshelf\s*\{([^}]*)\}/,
     )?.[1];
 
     expect(rule).toBeDefined();

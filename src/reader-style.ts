@@ -134,26 +134,26 @@ export function buildPublicationCss(settings: ReaderSettings): string {
       body :is(h1, h2, h3, h4, h5, h6) { text-wrap: wrap; }
       body :is(table, pre) { font-size: .9em; }
     }
-    body.pavel-epub-focus-mode p,
-    body.pavel-epub-focus-mode li,
-    body.pavel-epub-focus-mode blockquote,
-    body.pavel-epub-focus-mode pre,
-    body.pavel-epub-focus-mode h1,
-    body.pavel-epub-focus-mode h2,
-    body.pavel-epub-focus-mode h3,
-    body.pavel-epub-focus-mode h4,
-    body.pavel-epub-focus-mode h5,
-    body.pavel-epub-focus-mode h6 {
+    body.omni-book-reader-focus-mode p,
+    body.omni-book-reader-focus-mode li,
+    body.omni-book-reader-focus-mode blockquote,
+    body.omni-book-reader-focus-mode pre,
+    body.omni-book-reader-focus-mode h1,
+    body.omni-book-reader-focus-mode h2,
+    body.omni-book-reader-focus-mode h3,
+    body.omni-book-reader-focus-mode h4,
+    body.omni-book-reader-focus-mode h5,
+    body.omni-book-reader-focus-mode h6 {
       opacity: .18;
       transition: opacity .18s ease, background-color .18s ease, box-shadow .18s ease;
     }
-    body.pavel-epub-focus-mode .pavel-epub-focused-paragraph {
+    body.omni-book-reader-focus-mode .omni-book-reader-focused-paragraph {
       opacity: 1 !important;
       background: ${colors.selection};
       box-shadow: 0 0 0 .45em ${colors.selection};
       border-radius: .2em;
     }
-    body.pavel-epub-focus-mode .pavel-epub-focused-paragraph * {
+    body.omni-book-reader-focus-mode .omni-book-reader-focused-paragraph * {
       opacity: 1 !important;
     }
   `;

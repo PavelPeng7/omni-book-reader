@@ -9,7 +9,7 @@ import type {
   ReaderHighlight,
 } from "./types";
 
-const LEGACY_GENERATED_MARKER = "<!-- pavel-epub-reader:generated -->";
+const LEGACY_GENERATED_MARKER = "<!-- omni-book-reader:generated -->";
 
 const COLOR_VALUES: Record<HighlightColor, string> = {
   yellow: "#FFD54F",
@@ -92,7 +92,7 @@ export function buildCfiLink(vaultName: string, sourcePath: string, cfi: string)
     `path=${encode(normalizePath(sourcePath))}`,
     `cfi=${encode(cfi)}`,
   ].filter(Boolean).join("&");
-  return `obsidian://pavel-epub-reader?${params}`;
+  return `obsidian://omni-book-reader?${params}`;
 }
 
 function sourceLink(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
@@ -176,7 +176,7 @@ function renderDocument(
   highlights: ReaderHighlight[],
   options: AnnotationRenderOptions,
 ): string {
-  const documentTitle = kind === "notes" ? "Omni Reader - Notes" : "Omni Reader - Highlights";
+  const documentTitle = kind === "notes" ? "Omni Book Reader - Notes" : "Omni Book Reader - Highlights";
   const entries = renderEntries(kind, highlights, options);
   const normalizedAuthor = singleLine(author);
   const builtIn = [
@@ -219,17 +219,17 @@ export function renderNoteDocument(
 }
 
 function managedStart(kind: AnnotationDocumentKind): string {
-  return `<!-- pavel-epub-reader:${kind}:start -->`;
+  return `<!-- omni-book-reader:${kind}:start -->`;
 }
 
 function managedEnd(kind: AnnotationDocumentKind): string {
-  return `<!-- pavel-epub-reader:${kind}:end -->`;
+  return `<!-- omni-book-reader:${kind}:end -->`;
 }
 
 export function mergeManagedDocument(existing: string, kind: AnnotationDocumentKind, generated: string): string {
   const start = managedStart(kind);
   const end = managedEnd(kind);
-  const safeGenerated = generated.replace(/<!--\s*pavel-epub-reader:/gi, "&lt;!-- pavel-epub-reader:");
+  const safeGenerated = generated.replace(/<!--\s*omni-book-reader:/gi, "&lt;!-- omni-book-reader:");
   const block = `${start}\n${safeGenerated.trim()}\n${end}`;
   const startIndex = existing.indexOf(start);
   const endIndex = startIndex >= 0 ? existing.indexOf(end, startIndex + start.length) : -1;
@@ -309,8 +309,8 @@ export class AnnotationDocumentService {
           if (!isFile(file) || file.extension.toLowerCase() !== "md") continue;
           const current = await this.vault.cachedRead(file);
           const next = current.replaceAll(
-            "obsidian://pavel-epub-reader?vault=",
-            "obsidian://pavel-epub-reader?sourceVault=",
+            "obsidian://omni-book-reader?vault=",
+            "obsidian://omni-book-reader?sourceVault=",
           );
           if (next !== current) await this.vault.modify(file, next);
         }

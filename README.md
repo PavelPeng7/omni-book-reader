@@ -1,4 +1,4 @@
-# Omni Reader
+# Omni Book Reader
 
 An all-in-one, local-first EPUB 2/3 reading workbench for Obsidian. It supports paginated and scrolled reading, nested tables of contents, full-book search, reading-position restore, bookmarks, color highlights, and notes attached to highlights.
 
@@ -19,7 +19,7 @@ Additional reading tools:
 - Recent Reading is available from the ribbon and command palette for quickly continuing a book without a full bookshelf.
 - Focus Paragraph mode dims surrounding text and supports previous/next paragraph navigation with buttons or Arrow Up/Down. Escape exits the mode.
 
-Generated Markdown is written only between `pavel-epub-reader` managed-block comments, so content written outside that block is preserved. Unchanged exports are not rewritten. The settings page offers Classic, Compact, and Obsidian Callout presets. A custom Vault Markdown template can use these variables:
+Generated Markdown is written only between `omni-book-reader` managed-block comments, so content written outside that block is preserved. Unchanged exports are not rewritten. The settings page offers Classic, Compact, and Obsidian Callout presets. A custom Vault Markdown template can use these variables:
 
 - `{{document.title}}`, `{{document.kind}}`
 - `{{book.title}}`, `{{book.author}}`, `{{book.filePath}}`
@@ -52,7 +52,7 @@ This creates `dist/main.js`, `dist/manifest.json`, and `dist/styles.css` for man
 3. Commit, push, then create and push a matching tag such as `0.6.1`.
 4. GitHub Actions validates the build and publishes the three plugin files as a GitHub Release.
 
-For a local manual install, copy those three files into `<vault>/.obsidian/plugins/pavel-epub-reader/`, then reload the plugin in Obsidian.
+For a local manual install, copy those three files into `<vault>/.obsidian/plugins/omni-book-reader/`, then reload the plugin in Obsidian.
 
 ## License
 

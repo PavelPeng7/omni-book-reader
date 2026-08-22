@@ -174,7 +174,7 @@ export class ReaderSettingsModal extends Modal {
   onOpen(): void {
     const language = this.host.getReaderSettings().interfaceLanguage;
     this.titleEl.setText(uiText(language, "EPUB 阅读设置", "EPUB reading settings"));
-    this.contentEl.addClass("pavel-epub-settings");
+    this.contentEl.addClass("omni-book-reader-settings");
     renderSettings(this.contentEl, this.host, this.fixedLayout);
   }
 
@@ -183,7 +183,7 @@ export class ReaderSettingsModal extends Modal {
   }
 }
 
-export class PavelEpubSettingTab extends PluginSettingTab {
+export class OmniBookReaderSettingTab extends PluginSettingTab {
   constructor(app: App, private readonly host: SettingsHost & Plugin) {
     super(app, host);
   }
@@ -196,11 +196,11 @@ export class PavelEpubSettingTab extends PluginSettingTab {
       {
         type: "group",
         heading: t("阅读设置", "Reading settings"),
-        cls: "pavel-epub-settings-page",
+        cls: "omni-book-reader-settings-page",
         items: [
           {
             name: t("界面语言", "Interface language"),
-            desc: t("切换 OmniReader 的菜单、阅读器、书架和提示语言。", "Change the language used by OmniReader menus, reader, bookshelf, and notices."),
+            desc: t("切换 Omni Book Reader 的菜单、阅读器、书架和提示语言。", "Change the language used by Omni Book Reader menus, reader, bookshelf, and notices."),
             control: {
               type: "dropdown",
               key: "interfaceLanguage",
@@ -337,7 +337,7 @@ export class PavelEpubSettingTab extends PluginSettingTab {
       {
         type: "group",
         heading: t("标注导出", "Annotation export"),
-        cls: "pavel-epub-settings-page",
+        cls: "omni-book-reader-settings-page",
         items: [
           {
             name: t("导出模板", "Export template"),
@@ -437,12 +437,12 @@ export class PavelEpubSettingTab extends PluginSettingTab {
 
   private renderLegacySettings(): void {
     this.containerEl.empty();
-    this.containerEl.addClass("pavel-epub-settings-page");
+    this.containerEl.addClass("omni-book-reader-settings-page");
     const language = this.host.getReaderSettings().interfaceLanguage;
     const t = (zh: string, en: string): string => uiText(language, zh, en);
     new Setting(this.containerEl)
       .setName(t("界面语言", "Interface language"))
-      .setDesc(t("切换 OmniReader 的菜单、阅读器、书架和提示语言。", "Change the language used by OmniReader menus, reader, bookshelf, and notices."))
+      .setDesc(t("切换 Omni Book Reader 的菜单、阅读器、书架和提示语言。", "Change the language used by Omni Book Reader menus, reader, bookshelf, and notices."))
       .addDropdown((dropdown) => dropdown
         .addOptions({ zh: "中文", en: "English" })
         .setValue(language)

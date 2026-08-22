@@ -11,8 +11,8 @@ function declarations(selector: string): string {
 
 describe("mobile reader sidebar layout", () => {
   it("keeps the active panel independently scrollable by touch", () => {
-    const panels = declarations(".pavel-epub-panels");
-    const panel = declarations(".pavel-epub-panel");
+    const panels = declarations(".omni-book-reader-panels");
+    const panel = declarations(".omni-book-reader-panel");
 
     expect(panels).toContain("min-height: 0");
     expect(panels).toContain("overflow: hidden");
@@ -23,7 +23,7 @@ describe("mobile reader sidebar layout", () => {
   });
 
   it("does not consume horizontal space for every nested TOC level", () => {
-    const nestedList = declarations(".pavel-epub-toc-list .pavel-epub-toc-list");
+    const nestedList = declarations(".omni-book-reader-toc-list .omni-book-reader-toc-list");
     expect(nestedList).toContain("margin-left: 0");
     expect(nestedList).toContain("padding-left: 0");
   });
