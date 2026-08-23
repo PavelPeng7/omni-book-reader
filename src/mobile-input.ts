@@ -35,3 +35,15 @@ export function isPageTurnTap(
   if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > 550) return false;
   return Math.hypot(end.x - start.x, end.y - start.y) <= 14;
 }
+
+export function swipePageTurnDirection(
+  start: { x: number; y: number; time: number },
+  end: { x: number; y: number; time: number },
+): PageTurnDirection | null {
+  const elapsed = end.time - start.time;
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > 1400) return null;
+  if (Math.abs(deltaX) < 32 || Math.abs(deltaX) < Math.abs(deltaY) * 1.1) return null;
+  return deltaX < 0 ? "next" : "previous";
+}

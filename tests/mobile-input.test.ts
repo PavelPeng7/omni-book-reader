@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isPageTurnTap, mobilePageTurnDirection, tapPageTurnDirection } from "../src/mobile-input";
+import {
+  isPageTurnTap,
+  mobilePageTurnDirection,
+  swipePageTurnDirection,
+  tapPageTurnDirection,
+} from "../src/mobile-input";
 
 describe("mobilePageTurnDirection", () => {
   it("maps Android volume and page keys to reader navigation", () => {
@@ -35,5 +40,13 @@ describe("mobilePageTurnDirection", () => {
     expect(isPageTurnTap(start, { x: 86, y: 126, time: 1220 })).toBe(true);
     expect(isPageTurnTap(start, { x: 120, y: 126, time: 1220 })).toBe(false);
     expect(isPageTurnTap(start, { x: 82, y: 122, time: 1700 })).toBe(false);
+  });
+
+  it("turns a short horizontal swipe into exactly one page direction", () => {
+    const start = { x: 240, y: 300, time: 1000 };
+    expect(swipePageTurnDirection(start, { x: 190, y: 304, time: 1300 })).toBe("next");
+    expect(swipePageTurnDirection(start, { x: 290, y: 296, time: 1300 })).toBe("previous");
+    expect(swipePageTurnDirection(start, { x: 220, y: 250, time: 1300 })).toBeNull();
+    expect(swipePageTurnDirection(start, { x: 190, y: 304, time: 2600 })).toBeNull();
   });
 });
