@@ -20,6 +20,7 @@ import {
   isReadableEpubArchive,
   withLoadTimeout,
 } from "./epub-loader";
+import { installFoliateBlobIframePatch } from "./foliate-runtime-patches";
 import { uiLocale, uiText } from "./i18n";
 import { extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
 import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
@@ -417,6 +418,7 @@ export class OmniBookReaderView extends FileView {
   private bookAuthor = "";
   private fixedLayout = false;
   private loadedFileKey = "";
+  private runtimePatchCleanup: (() => void) | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: ReaderPluginHost) {
     super(leaf);
@@ -440,6 +442,9 @@ export class OmniBookReaderView extends FileView {
   }
 
   async onOpen(): Promise<void> {
+    if (Platform.isMobile && !this.runtimePatchCleanup) {
+      this.runtimePatchCleanup = installFoliateBlobIframePatch();
+    }
     this.buildShell();
     this.registerDomEvent(document, "keydown", (event: KeyboardEvent) => this.handleMobileHardwareKey(event), true);
     this.registerDomEvent(document, "fullscreenchange", () => this.handleFullscreenChange());
@@ -467,6 +472,8 @@ export class OmniBookReaderView extends FileView {
     if (this.layoutFrame !== null) window.cancelAnimationFrame(this.layoutFrame);
     this.layoutFrame = null;
     await this.cleanupReader();
+    this.runtimePatchCleanup?.();
+    this.runtimePatchCleanup = null;
     await this.plugin.store.flush();
     this.contentEl.empty();
     this.rootEl = null;
@@ -905,6 +912,7 @@ export class OmniBookReaderView extends FileView {
         const candidate = this.viewerEl.createEl("foliate-view");
         candidate.addClass("omni-book-reader-foliate-view", "is-loading");
         let book: FoliateBook | null = null;
+        let sanitizerCleanup: (() => void) | null = null;
         try {
           book = await withLoadTimeout(createEpubBook(binary, ({ phase, loaded, total }) => {
             if (generation !== this.loadGeneration) return;
@@ -937,6 +945,7 @@ export class OmniBookReaderView extends FileView {
             0.7,
             this.text("正在启动排版引擎", "Starting the layout engine"),
           );
+          sanitizerCleanup = installPublicationSanitizer(book.transformTarget);
           await withLoadTimeout(candidate.open(book), timeout, () => {
             if (generation === this.loadGeneration) {
               this.showLoading(
@@ -948,8 +957,11 @@ export class OmniBookReaderView extends FileView {
           });
           reader = candidate;
           openedSource = source;
+          this.cleanupCallbacks.push(sanitizerCleanup);
+          sanitizerCleanup = null;
           break;
         } catch (error) {
+          sanitizerCleanup?.();
           lastOpenError = error;
           candidate.close?.();
           book?.destroy?.();
@@ -969,7 +981,6 @@ export class OmniBookReaderView extends FileView {
       if (generation !== this.loadGeneration) return;
 
       this.attachReaderEvents(reader);
-      this.cleanupCallbacks.push(installPublicationSanitizer(reader.book.transformTarget));
       this.fixedLayout = Boolean(reader.isFixedLayout || reader.book.rendition?.layout === "pre-paginated");
       this.bookState = this.plugin.store.ensureBook(file.path, { size: file.stat.size, mtime: file.stat.mtime });
       this.startReadingStats();
