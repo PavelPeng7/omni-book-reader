@@ -28,7 +28,7 @@ import { installFoliateCustomElementGuard } from "./foliate-custom-element-guard
 import { uiLocale, uiText } from "./i18n";
 import { extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
 import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
-import { mobilePageTurnDirection, tapPageTurnDirection } from "./mobile-input";
+import { isPageTurnTap, mobilePageTurnDirection, tapPageTurnDirection } from "./mobile-input";
 import { installPublicationSanitizer } from "./sanitizer";
 import { SearchSession } from "./search-session";
 import { ReaderSettingsModal, type SettingsHost } from "./settings-ui";
@@ -628,12 +628,12 @@ export class OmniBookReaderView extends FileView {
     this.readingAreaEl = readingArea;
     const previous = iconButton(readingArea, "chevron-left", t("上一页", "Previous page"));
     previous.addClass("omni-book-reader-page-button", "is-previous");
-    previous.addEventListener("click", () => void this.reader?.goLeft());
+    previous.addEventListener("click", () => this.queuePageTurn("previous"));
     this.viewerEl = readingArea.createDiv({ cls: "omni-book-reader-viewer" });
     this.showLoading(t("正在准备书籍…", "Preparing book…"), 0.04);
     const next = iconButton(readingArea, "chevron-right", t("下一页", "Next page"));
     next.addClass("omni-book-reader-page-button", "is-next");
-    next.addEventListener("click", () => void this.reader?.goRight());
+    next.addEventListener("click", () => this.queuePageTurn("next"));
 
     const immersiveExit = readingArea.createEl("button", {
       cls: "omni-book-reader-immersive-exit",
@@ -650,14 +650,14 @@ export class OmniBookReaderView extends FileView {
     immersivePrevious.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      void this.reader?.goLeft();
+      this.queuePageTurn("previous");
     });
     this.immersiveLocationEl = immersiveFooter.createSpan({ text: t("正在定位", "Locating") });
     const immersiveNext = immersiveFooter.createEl("button", { text: t("下一页 →", "Next →"), attr: { type: "button" } });
     immersiveNext.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      void this.reader?.goRight();
+      this.queuePageTurn("next");
     });
 
     const footer = root.createDiv({ cls: "omni-book-reader-footer" });
@@ -1179,6 +1179,8 @@ export class OmniBookReaderView extends FileView {
     this.attachedDocuments.add(document);
     let selectionFrame: number | null = null;
     let selectionRetry: number | null = null;
+    let touchStartPoint: { x: number; y: number; time: number; target: Element | null } | null = null;
+    let suppressClickUntil = 0;
     const capture = (): void => {
       if (selectionFrame !== null) window.cancelAnimationFrame(selectionFrame);
       selectionFrame = window.requestAnimationFrame(() => {
@@ -1186,12 +1188,35 @@ export class OmniBookReaderView extends FileView {
         this.captureSelection(document, sectionIndex);
       });
     };
-    const pointerUp = (): void => {
+    const pointerUp = (event: PointerEvent): void => {
       this.noteReadingActivity();
-      capture();
+      if (event.pointerType !== "touch") capture();
     };
-    const touchEnd = (): void => {
+    const touchStart = (event: TouchEvent): void => {
+      const touch = event.changedTouches.item(0);
+      touchStartPoint = event.touches.length === 1 && touch ? {
+        x: touch.clientX,
+        y: touch.clientY,
+        time: event.timeStamp,
+        target: event.target as Element | null,
+      } : null;
+    };
+    const touchEnd = (event: TouchEvent): void => {
       this.noteReadingActivity();
+      const start = touchStartPoint;
+      const touch = event.changedTouches.item(0);
+      touchStartPoint = null;
+      if (start && touch && isPageTurnTap(start, {
+        x: touch.clientX,
+        y: touch.clientY,
+        time: event.timeStamp,
+      }) && this.handleDocumentTap(touch.clientX, start.target, document)) {
+        suppressClickUntil = event.timeStamp + 700;
+        if (event.cancelable) event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
       capture();
       if (selectionRetry !== null) window.clearTimeout(selectionRetry);
       selectionRetry = window.setTimeout(() => {
@@ -1199,13 +1224,21 @@ export class OmniBookReaderView extends FileView {
         capture();
       }, 140);
     };
-    const keyUp = (event: KeyboardEvent): void => {
+    const touchCancel = (): void => {
+      touchStartPoint = null;
+    };
+    const keyDown = (event: KeyboardEvent): void => {
       this.noteReadingActivity();
+      this.handleMobileHardwareKey(event);
       this.handleKeydown(event);
+    };
+    const keyUp = (): void => {
+      this.noteReadingActivity();
       capture();
     };
     const wheel = (event: WheelEvent): void => this.handleWheel(event);
     const click = (event: MouseEvent): void => {
+      if (event.timeStamp <= suppressClickUntil) return;
       const target = event.target as Element | null;
       const image = target?.closest?.("img");
       if (image) {
@@ -1216,12 +1249,19 @@ export class OmniBookReaderView extends FileView {
         this.openImagePreview(source, image.getAttribute("alt") ?? "");
         return;
       }
-      this.handleDocumentTap(event, document);
+      if (event.defaultPrevented || event.button !== 0 || event.detail === 0) return;
+      if (!this.handleDocumentTap(event.clientX, target, document)) return;
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
     };
     document.addEventListener("pointerup", pointerUp);
     document.addEventListener("mouseup", capture);
-    document.addEventListener("touchend", touchEnd, { passive: true });
+    document.addEventListener("touchstart", touchStart, { capture: true, passive: true });
+    document.addEventListener("touchend", touchEnd, { capture: true, passive: false });
+    document.addEventListener("touchcancel", touchCancel, true);
     document.addEventListener("selectionchange", capture);
+    document.addEventListener("keydown", keyDown, true);
     document.addEventListener("keyup", keyUp);
     document.addEventListener("wheel", wheel, { passive: false });
     document.addEventListener("click", click, true);
@@ -1231,32 +1271,31 @@ export class OmniBookReaderView extends FileView {
       if (selectionRetry !== null) window.clearTimeout(selectionRetry);
       document.removeEventListener("pointerup", pointerUp);
       document.removeEventListener("mouseup", capture);
-      document.removeEventListener("touchend", touchEnd);
+      document.removeEventListener("touchstart", touchStart, true);
+      document.removeEventListener("touchend", touchEnd, true);
+      document.removeEventListener("touchcancel", touchCancel, true);
       document.removeEventListener("selectionchange", capture);
+      document.removeEventListener("keydown", keyDown, true);
       document.removeEventListener("keyup", keyUp);
       document.removeEventListener("wheel", wheel);
       document.removeEventListener("click", click, true);
     });
   }
 
-  private handleDocumentTap(event: MouseEvent, document: Document): void {
-    if (!this.reader || !this.plugin.getReaderSettings().tapToTurnPages
-      || event.defaultPrevented || event.button !== 0 || event.detail === 0) return;
-    if (!this.fixedLayout && this.plugin.getReaderSettings().layout !== "paginated") return;
-    const target = event.target as Element | null;
+  private handleDocumentTap(clientX: number, target: Element | null, document: Document): boolean {
+    if (!this.reader || !this.plugin.getReaderSettings().tapToTurnPages) return false;
+    if (!this.fixedLayout && this.plugin.getReaderSettings().layout !== "paginated") return false;
     if (target?.closest?.(
       "a, button, input, textarea, select, option, label, summary, details, img, svg, video, audio, iframe, [contenteditable='true'], [role='button'], [role='link']",
-    )) return;
+    )) return false;
     const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
-    if (this.pendingSelection || (selection && !selection.isCollapsed)) return;
+    if (this.pendingSelection || (selection && !selection.isCollapsed)) return false;
     const viewportWidth = document.defaultView?.innerWidth ?? document.documentElement.clientWidth;
-    const direction = tapPageTurnDirection(event.clientX, viewportWidth);
-    if (!direction) return;
-    if (event.cancelable) event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
+    const direction = tapPageTurnDirection(clientX, viewportWidth);
+    if (!direction) return false;
     this.noteReadingActivity();
     this.queuePageTurn(direction);
+    return true;
   }
 
   private queuePageTurn(direction: "previous" | "next"): void {
@@ -1957,18 +1996,18 @@ export class OmniBookReaderView extends FileView {
     if (!this.reader || event.metaKey || event.ctrlKey || event.altKey) return;
     if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
       event.preventDefault();
-      void this.reader.goLeft();
+      this.queuePageTurn("previous");
     } else if (event.key === "ArrowRight" || event.key === "ArrowDown") {
       event.preventDefault();
-      void this.reader.goRight();
+      this.queuePageTurn("next");
     } else if (event.key === "PageUp" || event.key === "Home") {
       event.preventDefault();
       if (event.key === "Home") void this.reader.goToFraction(0);
-      else void this.reader.prev();
+      else this.queuePageTurn("previous");
     } else if (event.key === "PageDown" || event.key === " " || event.key === "End") {
       event.preventDefault();
       if (event.key === "End") void this.reader.goToFraction(1);
-      else void this.reader.next();
+      else this.queuePageTurn("next");
     }
   }
 
@@ -1989,7 +2028,7 @@ export class OmniBookReaderView extends FileView {
     const forward = this.wheelDelta > 0;
     this.wheelDelta = 0;
     this.lastWheelTurnAt = now;
-    void (forward ? this.reader.goRight() : this.reader.goLeft());
+    this.queuePageTurn(forward ? "next" : "previous");
   }
 
   private handleMobileHardwareKey(event: KeyboardEvent): void {
@@ -2001,7 +2040,7 @@ export class OmniBookReaderView extends FileView {
     event.stopPropagation();
     event.stopImmediatePropagation();
     this.noteReadingActivity();
-    void (direction === "next" ? this.reader.goRight() : this.reader.goLeft());
+    this.queuePageTurn(direction);
   }
 
   private showLoading(message: string, progress = 0, detail = ""): void {

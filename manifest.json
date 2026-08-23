@@ -1,7 +1,7 @@
 {
   "id": "omni-book-reader",
   "name": "Omni Book Reader",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "minAppVersion": "1.9.14",
   "description": "An all-in-one, local-first EPUB reading workbench with a bookshelf, annotations, exports, focus mode, and reading statistics.",
   "author": "Pavel Peng",
