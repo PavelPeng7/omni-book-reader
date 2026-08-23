@@ -1,4 +1,3 @@
-import "foliate-js/view.js";
 import { Overlayer } from "foliate-js/overlayer.js";
 import { FootnoteHandler } from "foliate-js/footnotes.js";
 import {
@@ -13,6 +12,7 @@ import {
 import type { AnnotationDocumentInput } from "./annotation-documents";
 import { exportChapterMarkdown } from "./chapter-export";
 import { readEpubBinaryCandidates } from "./epub-binary";
+import { installBlobUrlRegistry } from "./blob-url-registry";
 import { extractEpubCover } from "./epub-cover";
 import {
   bookLoadTimeout,
@@ -20,7 +20,11 @@ import {
   isReadableEpubArchive,
   withLoadTimeout,
 } from "./epub-loader";
-import { installFoliateBlobIframePatch } from "./foliate-runtime-patches";
+import {
+  installDesktopFoliateIframeSandboxPatch,
+  installFoliateBlobIframePatch,
+} from "./foliate-runtime-patches";
+import { installFoliateCustomElementGuard } from "./foliate-custom-element-guard";
 import { uiLocale, uiText } from "./i18n";
 import { extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
 import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
@@ -53,6 +57,14 @@ import {
 } from "./utils";
 
 export const OMNI_BOOK_READER_VIEW_TYPE = "omni-book-reader-view";
+
+let foliateViewModulePromise: Promise<unknown> | null = null;
+
+async function ensureFoliateViewModule(): Promise<void> {
+  installFoliateCustomElementGuard();
+  foliateViewModulePromise ??= import("foliate-js/view.js");
+  await foliateViewModulePromise;
+}
 
 const HIGHLIGHT_COLORS: Record<HighlightColor, { zh: string; en: string; value: string }> = {
   yellow: { zh: "黄色高亮", en: "Yellow highlight", value: "#ffd54f" },
@@ -418,7 +430,6 @@ export class OmniBookReaderView extends FileView {
   private bookAuthor = "";
   private fixedLayout = false;
   private loadedFileKey = "";
-  private runtimePatchCleanup: (() => void) | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: ReaderPluginHost) {
     super(leaf);
@@ -442,9 +453,7 @@ export class OmniBookReaderView extends FileView {
   }
 
   async onOpen(): Promise<void> {
-    if (Platform.isMobile && !this.runtimePatchCleanup) {
-      this.runtimePatchCleanup = installFoliateBlobIframePatch();
-    }
+    await this.ensureFoliateRuntimeCompatibility();
     this.buildShell();
     this.registerDomEvent(document, "keydown", (event: KeyboardEvent) => this.handleMobileHardwareKey(event), true);
     this.registerDomEvent(document, "fullscreenchange", () => this.handleFullscreenChange());
@@ -472,8 +481,6 @@ export class OmniBookReaderView extends FileView {
     if (this.layoutFrame !== null) window.cancelAnimationFrame(this.layoutFrame);
     this.layoutFrame = null;
     await this.cleanupReader();
-    this.runtimePatchCleanup?.();
-    this.runtimePatchCleanup = null;
     await this.plugin.store.flush();
     this.contentEl.empty();
     this.rootEl = null;
@@ -878,6 +885,7 @@ export class OmniBookReaderView extends FileView {
   }
 
   private async loadBook(file: TFile): Promise<void> {
+    await this.ensureFoliateRuntimeCompatibility();
     const fileKey = `${file.path}:${file.stat.size}:${file.stat.mtime}`;
     if (this.reader && this.loadedFileKey === fileKey) return;
     const generation = ++this.loadGeneration;
@@ -1016,6 +1024,13 @@ export class OmniBookReaderView extends FileView {
       console.error("[Omni Book Reader] Failed to open book", error);
       this.showLoadError(file, error);
     }
+  }
+
+  private async ensureFoliateRuntimeCompatibility(): Promise<void> {
+    installBlobUrlRegistry();
+    installDesktopFoliateIframeSandboxPatch(Platform.isMobile);
+    installFoliateBlobIframePatch();
+    await ensureFoliateViewModule();
   }
 
   private async loadSidebarCover(reader: FoliateViewElement, source: File, generation: number): Promise<void> {
