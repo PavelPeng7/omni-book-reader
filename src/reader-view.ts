@@ -28,7 +28,7 @@ import { installFoliateCustomElementGuard } from "./foliate-custom-element-guard
 import { uiLocale, uiText } from "./i18n";
 import { extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
 import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
-import { mobilePageTurnDirection } from "./mobile-input";
+import { mobilePageTurnDirection, tapPageTurnDirection } from "./mobile-input";
 import { installPublicationSanitizer } from "./sanitizer";
 import { SearchSession } from "./search-session";
 import { ReaderSettingsModal, type SettingsHost } from "./settings-ui";
@@ -1204,12 +1204,15 @@ export class OmniBookReaderView extends FileView {
     const click = (event: MouseEvent): void => {
       const target = event.target as Element | null;
       const image = target?.closest?.("img");
-      if (!image) return;
-      const source = image.currentSrc || image.src || image.getAttribute("src") || "";
-      if (!source.startsWith("blob:") && !source.startsWith("data:")) return;
-      event.preventDefault();
-      event.stopPropagation();
-      this.openImagePreview(source, image.getAttribute("alt") ?? "");
+      if (image) {
+        const source = image.currentSrc || image.src || image.getAttribute("src") || "";
+        if (!source.startsWith("blob:") && !source.startsWith("data:")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        this.openImagePreview(source, image.getAttribute("alt") ?? "");
+        return;
+      }
+      this.handleDocumentTap(event, document);
     };
     document.addEventListener("pointerup", pointerUp);
     document.addEventListener("mouseup", capture);
@@ -1229,6 +1232,25 @@ export class OmniBookReaderView extends FileView {
       document.removeEventListener("wheel", wheel);
       document.removeEventListener("click", click, true);
     });
+  }
+
+  private handleDocumentTap(event: MouseEvent, document: Document): void {
+    if (!Platform.isMobile || !this.reader || event.defaultPrevented || event.button !== 0 || event.detail === 0) return;
+    if (!this.fixedLayout && this.plugin.getReaderSettings().layout !== "paginated") return;
+    const target = event.target as Element | null;
+    if (target?.closest?.(
+      "a, button, input, textarea, select, option, label, summary, details, img, svg, video, audio, iframe, [contenteditable='true'], [role='button'], [role='link']",
+    )) return;
+    const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
+    if (this.pendingSelection || (selection && !selection.isCollapsed)) return;
+    const viewportWidth = document.defaultView?.innerWidth ?? document.documentElement.clientWidth;
+    const direction = tapPageTurnDirection(event.clientX, viewportWidth);
+    if (!direction) return;
+    if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    this.noteReadingActivity();
+    void (direction === "next" ? this.reader.goRight() : this.reader.goLeft());
   }
 
   async exportCurrentChapter(): Promise<void> {
