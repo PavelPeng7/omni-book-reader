@@ -26,6 +26,7 @@ describe("reader settings", () => {
       interfaceLanguage: "zh",
       theme: "auto",
       layout: "scrolled",
+      tapToTurnPages: true,
       font: "sans",
       fontSizePercent: 180,
       lineHeight: 1.2,
@@ -39,9 +40,10 @@ describe("reader settings", () => {
     });
     expect(normalizeSettings({
       interfaceLanguage: "en",
+      tapToTurnPages: false,
       exportTemplate: "custom",
       customExportTemplatePath: "模板\\EPUB 导出.md",
-    })).toMatchObject({ interfaceLanguage: "en", exportTemplate: "custom" });
+    })).toMatchObject({ interfaceLanguage: "en", tapToTurnPages: false, exportTemplate: "custom" });
     expect(normalizeSettings({
       exportTemplate: "callout",
       customExportTemplatePath: "模板\\EPUB 导出.md",

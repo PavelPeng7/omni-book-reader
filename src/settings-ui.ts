@@ -44,6 +44,13 @@ function renderSettings(
     });
 
   new Setting(container)
+    .setName(t("点触翻页", "Tap to turn pages"))
+    .setDesc(t("在分页阅读中点击左半区上一页、右半区下一页，桌面端和移动端均可使用。", "In paginated reading, click or tap the left half for the previous page and the right half for the next page on desktop and mobile."))
+    .addToggle((toggle) => toggle
+      .setValue(get().tapToTurnPages)
+      .onChange((tapToTurnPages) => host.updateReaderSettings({ tapToTurnPages })));
+
+  new Setting(container)
     .setName(t("字体", "Font"))
     .setDesc(t("跟随 Obsidian 可避免书内字体混杂；原书字体保留出版社排版。", "Follow Obsidian for consistent typography, or keep the publisher's fonts."))
     .addDropdown((dropdown) => dropdown
@@ -234,6 +241,14 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
             },
           },
           {
+            name: t("点触翻页", "Tap to turn pages"),
+            desc: t("在分页阅读中点击左半区上一页、右半区下一页，桌面端和移动端均可使用。", "In paginated reading, click or tap the left half for the previous page and the right half for the next page on desktop and mobile."),
+            control: {
+              type: "toggle",
+              key: "tapToTurnPages",
+            },
+          },
+          {
             name: t("字体", "Font"),
             desc: t("跟随 Obsidian 可避免书内字体混杂；原书字体保留出版社排版。", "Follow Obsidian for consistent typography, or keep the publisher's fonts."),
             control: {
@@ -376,6 +391,7 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
       case "interfaceLanguage": return settings.interfaceLanguage;
       case "theme": return settings.theme;
       case "layout": return settings.layout;
+      case "tapToTurnPages": return settings.tapToTurnPages;
       case "font": return settings.font;
       case "fontSizePercent": return settings.fontSizePercent;
       case "lineHeight": return settings.lineHeight;
@@ -403,6 +419,9 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
         return;
       case "layout":
         if (value === "paginated" || value === "scrolled") this.host.updateReaderSettings({ layout: value });
+        return;
+      case "tapToTurnPages":
+        if (typeof value === "boolean") this.host.updateReaderSettings({ tapToTurnPages: value });
         return;
       case "font":
         if (value === "obsidian" || value === "publisher" || value === "serif" || value === "sans") {

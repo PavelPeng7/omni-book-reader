@@ -420,6 +420,8 @@ export class OmniBookReaderView extends FileView {
   private sidebarOpenBeforeFocus = false;
   private loadGeneration = 0;
   private cleanupCallbacks: Array<() => void> = [];
+  private attachedDocuments = new WeakSet<Document>();
+  private pageTurnQueue: Promise<void> = Promise.resolve();
   private searchSession = new SearchSession();
   private themeObserver: MutationObserver | null = null;
   private layoutObserver: ResizeObserver | null = null;
@@ -1173,6 +1175,8 @@ export class OmniBookReaderView extends FileView {
   }
 
   private attachDocumentEvents(document: Document, sectionIndex: number): void {
+    if (this.attachedDocuments.has(document)) return;
+    this.attachedDocuments.add(document);
     let selectionFrame: number | null = null;
     let selectionRetry: number | null = null;
     const capture = (): void => {
@@ -1222,6 +1226,7 @@ export class OmniBookReaderView extends FileView {
     document.addEventListener("wheel", wheel, { passive: false });
     document.addEventListener("click", click, true);
     this.cleanupCallbacks.push(() => {
+      this.attachedDocuments.delete(document);
       if (selectionFrame !== null) window.cancelAnimationFrame(selectionFrame);
       if (selectionRetry !== null) window.clearTimeout(selectionRetry);
       document.removeEventListener("pointerup", pointerUp);
@@ -1235,7 +1240,8 @@ export class OmniBookReaderView extends FileView {
   }
 
   private handleDocumentTap(event: MouseEvent, document: Document): void {
-    if (!Platform.isMobile || !this.reader || event.defaultPrevented || event.button !== 0 || event.detail === 0) return;
+    if (!this.reader || !this.plugin.getReaderSettings().tapToTurnPages
+      || event.defaultPrevented || event.button !== 0 || event.detail === 0) return;
     if (!this.fixedLayout && this.plugin.getReaderSettings().layout !== "paginated") return;
     const target = event.target as Element | null;
     if (target?.closest?.(
@@ -1250,7 +1256,19 @@ export class OmniBookReaderView extends FileView {
     event.stopPropagation();
     event.stopImmediatePropagation();
     this.noteReadingActivity();
-    void (direction === "next" ? this.reader.goRight() : this.reader.goLeft());
+    this.queuePageTurn(direction);
+  }
+
+  private queuePageTurn(direction: "previous" | "next"): void {
+    const reader = this.reader;
+    const generation = this.loadGeneration;
+    const turn = async (): Promise<void> => {
+      if (!reader || reader !== this.reader || generation !== this.loadGeneration) return;
+      await (direction === "next" ? reader.goRight() : reader.goLeft());
+    };
+    this.pageTurnQueue = this.pageTurnQueue
+      .then(turn, turn)
+      .catch((error) => console.warn("[Omni Book Reader] Could not turn the page", error));
   }
 
   async exportCurrentChapter(): Promise<void> {
@@ -2061,8 +2079,10 @@ export class OmniBookReaderView extends FileView {
     for (const cleanup of this.cleanupCallbacks.splice(0)) {
       try { cleanup(); } catch { /* Ignore cleanup races. */ }
     }
+    this.attachedDocuments = new WeakSet<Document>();
     const reader = this.reader;
     this.reader = null;
+    this.pageTurnQueue = Promise.resolve();
     if (reader) {
       try { reader.clearSearch(); } catch { /* Reader may not have opened fully. */ }
       try { reader.close(); } catch { /* Reader may not have opened fully. */ }
