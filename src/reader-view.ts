@@ -10,6 +10,7 @@ import {
   setIcon,
 } from "obsidian";
 import type { AnnotationDocumentInput } from "./annotation-documents";
+import { annotationValueAtPoint } from "./annotation-hit-test";
 import { exportChapterMarkdown } from "./chapter-export";
 import { readEpubBinaryCandidates } from "./epub-binary";
 import { installBlobUrlRegistry } from "./blob-url-registry";
@@ -652,20 +653,8 @@ export class OmniBookReaderView extends FileView {
       event.stopPropagation();
       void this.toggleFocusMode(false);
     });
-    const immersiveFooter = readingArea.createDiv({ cls: "omni-book-reader-immersive-footer", attr: { "aria-label": t("沉浸式阅读翻页", "Immersive reading navigation") } });
-    const immersivePrevious = immersiveFooter.createEl("button", { text: t("← 上一页", "← Previous"), attr: { type: "button" } });
-    immersivePrevious.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      this.queuePageTurn("previous");
-    });
+    const immersiveFooter = readingArea.createDiv({ cls: "omni-book-reader-immersive-footer", attr: { "aria-label": t("当前阅读位置", "Current reading position") } });
     this.immersiveLocationEl = immersiveFooter.createSpan({ text: t("正在定位", "Locating") });
-    const immersiveNext = immersiveFooter.createEl("button", { text: t("下一页 →", "Next →"), attr: { type: "button" } });
-    immersiveNext.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      this.queuePageTurn("next");
-    });
 
     const footer = root.createDiv({ cls: "omni-book-reader-footer" });
     this.progressTextEl = footer.createSpan({ cls: "omni-book-reader-progress-text", text: "0%" });
@@ -1237,7 +1226,10 @@ export class OmniBookReaderView extends FileView {
       const swipeDirection = swipePageTurnDirection(start, end);
       const handled = swipeDirection
         ? (this.queuePageTurn(swipeDirection), true)
-        : isPageTurnTap(start, end) && this.handleDocumentTap(touch.clientX, start.target, document);
+        : isPageTurnTap(start, end) && (
+          this.openHighlightAtPoint(document, touch.clientX, touch.clientY)
+          || this.handleDocumentTap(touch.clientX, start.target, document)
+        );
       if (handled) {
         suppressClickUntil = event.timeStamp + 700;
         if (event.cancelable) event.preventDefault();
@@ -1279,6 +1271,12 @@ export class OmniBookReaderView extends FileView {
         return;
       }
       if (event.defaultPrevented || event.button !== 0 || event.detail === 0) return;
+      if (this.openHighlightAtPoint(document, event.clientX, event.clientY)) {
+        if (event.cancelable) event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
       if (!this.handleDocumentTap(event.clientX, target, document)) return;
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
@@ -1321,6 +1319,16 @@ export class OmniBookReaderView extends FileView {
     )) return false;
     const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
     return !this.pendingSelection && !(selection && !selection.isCollapsed);
+  }
+
+  private openHighlightAtPoint(document: Document, clientX: number, clientY: number): boolean {
+    const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
+    if (selection && !selection.isCollapsed) return false;
+    const value = annotationValueAtPoint(this.reader?.renderer, document, clientX, clientY);
+    const highlight = this.bookState?.highlights.find((item) => item.cfi === value);
+    if (!highlight) return false;
+    this.openHighlightActions(highlight);
+    return true;
   }
 
   private handleDocumentTap(clientX: number, target: Element | null, document: Document): boolean {

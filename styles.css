@@ -675,13 +675,11 @@ body.omni-book-reader-immersive-mode {
   z-index: 31;
   right: 18px;
   bottom: max(16px, env(safe-area-inset-bottom));
-  left: 18px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(18px, 5vw, 56px);
-  min-height: 48px;
-  padding: 4px 8px;
+  min-height: 36px;
+  padding: 6px 14px;
   color: var(--pavel-botanical-muted, var(--text-muted));
   font-size: var(--font-ui-small);
   background: color-mix(in srgb, var(--pavel-botanical-paper-raised, var(--background-primary)) 82%, transparent);
@@ -692,27 +690,8 @@ body.omni-book-reader-immersive-mode {
   pointer-events: none;
 }
 
-.omni-book-reader-immersive-footer button {
-  min-width: 88px;
-  min-height: 44px;
-  padding: 8px 14px;
-  color: inherit;
-  font: inherit;
-  font-weight: 700;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  pointer-events: auto;
-}
-
-.omni-book-reader-immersive-footer button:hover {
-  color: var(--pavel-botanical-terracotta, var(--text-accent));
-  background: color-mix(in srgb, var(--pavel-botanical-paper-raised, var(--background-primary)) 75%, transparent);
-  border-radius: 999px;
-}
-
 .omni-book-reader-immersive-footer span {
-  min-width: 90px;
+  min-width: 0;
   text-align: center;
 }
 
@@ -722,13 +701,7 @@ body.omni-book-reader-immersive-mode {
   }
 
   .omni-book-reader.is-focus-mode .omni-book-reader-immersive-footer {
-    right: 6px;
-    left: 6px;
-    gap: 8px;
-  }
-
-  .omni-book-reader-immersive-footer span {
-    min-width: 0;
+    right: 10px;
   }
 }
 

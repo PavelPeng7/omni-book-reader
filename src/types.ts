@@ -117,7 +117,11 @@ export interface FoliateBook {
 
 export interface FoliateRenderer extends HTMLElement {
   setStyles?: (css: string) => void;
-  getContents?: () => Array<{ doc: Document; index: number }>;
+  getContents?: () => Array<{ doc: Document; index: number; overlayer?: FoliateOverlayer }>;
+}
+
+export interface FoliateOverlayer {
+  hitTest(point: { x: number; y: number }): readonly [] | readonly [string, Range];
 }
 
 export interface FoliateLocation {
