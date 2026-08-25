@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isPageTurnTap,
   mobilePageTurnDirection,
+  shouldSuppressTouchPageTurn,
   swipePageTurnDirection,
   tapPageTurnDirection,
 } from "../src/mobile-input";
@@ -48,5 +49,12 @@ describe("mobilePageTurnDirection", () => {
     expect(swipePageTurnDirection(start, { x: 290, y: 296, time: 1300 })).toBe("previous");
     expect(swipePageTurnDirection(start, { x: 220, y: 250, time: 1300 })).toBeNull();
     expect(swipePageTurnDirection(start, { x: 190, y: 304, time: 2600 })).toBeNull();
+  });
+
+  it("suppresses page turns for native text selection and long presses", () => {
+    const start = { x: 80, y: 120, time: 1000 };
+    expect(shouldSuppressTouchPageTurn(start, { x: 82, y: 122, time: 1200 }, true)).toBe(true);
+    expect(shouldSuppressTouchPageTurn(start, { x: 120, y: 122, time: 1500 }, false)).toBe(true);
+    expect(shouldSuppressTouchPageTurn(start, { x: 120, y: 122, time: 1499 }, false)).toBe(false);
   });
 });

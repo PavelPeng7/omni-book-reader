@@ -15,6 +15,7 @@ import { exportChapterMarkdown } from "./chapter-export";
 import { readEpubBinaryCandidates } from "./epub-binary";
 import { installBlobUrlRegistry } from "./blob-url-registry";
 import { extractEpubCover } from "./epub-cover";
+import { connectAdjacentHighlightRanges } from "./highlight-range-connection";
 import {
   bookLoadTimeout,
   createEpubBook,
@@ -32,6 +33,7 @@ import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
 import {
   isPageTurnTap,
   mobilePageTurnDirection,
+  shouldSuppressTouchPageTurn,
   swipePageTurnDirection,
   tapPageTurnDirection,
 } from "./mobile-input";
@@ -120,6 +122,17 @@ function annotationFor(highlight: ReaderHighlight): { value: string; color: stri
     color: HIGHLIGHT_COLORS[highlight.color].value,
     style: highlight.style,
   };
+}
+
+function isDomRange(value: unknown): value is Range {
+  if (!value || typeof value !== "object") return false;
+  const range = value as Partial<Range>;
+  return Boolean(
+    range.startContainer
+    && range.endContainer
+    && typeof range.comparePoint === "function"
+    && typeof range.cloneRange === "function",
+  );
 }
 
 export interface ReaderPluginHost extends SettingsHost {
@@ -1176,6 +1189,7 @@ export class OmniBookReaderView extends FileView {
     let selectionFrame: number | null = null;
     let selectionRetry: number | null = null;
     let touchStartPoint: { x: number; y: number; time: number; target: Element | null } | null = null;
+    let selectingText = false;
     let suppressClickUntil = 0;
     const capture = (): void => {
       if (selectionFrame !== null) window.cancelAnimationFrame(selectionFrame);
@@ -1189,6 +1203,7 @@ export class OmniBookReaderView extends FileView {
       if (event.pointerType !== "touch") capture();
     };
     const touchStart = (event: TouchEvent): void => {
+      selectingText = false;
       const touch = event.changedTouches.item(0);
       touchStartPoint = event.touches.length === 1 && touch
         && this.canUseDocumentPageTurn(event.target as Element | null, document) ? {
@@ -1202,6 +1217,7 @@ export class OmniBookReaderView extends FileView {
       if (!touchStartPoint || event.touches.length !== 1) return;
       const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
       if (selection && !selection.isCollapsed) {
+        selectingText = true;
         touchStartPoint = null;
         return;
       }
@@ -1214,7 +1230,15 @@ export class OmniBookReaderView extends FileView {
       const start = touchStartPoint;
       const touch = event.changedTouches.item(0);
       touchStartPoint = null;
+      const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
+      const hasTextSelection = selectingText || Boolean(selection && !selection.isCollapsed);
+      selectingText = false;
       if (!start || !touch) {
+        if (hasTextSelection) {
+          suppressClickUntil = event.timeStamp + 700;
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+        }
         capture();
         return;
       }
@@ -1223,6 +1247,18 @@ export class OmniBookReaderView extends FileView {
         y: touch.clientY,
         time: event.timeStamp,
       };
+      if (shouldSuppressTouchPageTurn(start, end, hasTextSelection)) {
+        suppressClickUntil = event.timeStamp + 700;
+        capture();
+        if (selectionRetry !== null) window.clearTimeout(selectionRetry);
+        selectionRetry = window.setTimeout(() => {
+          selectionRetry = null;
+          capture();
+        }, 140);
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
       const swipeDirection = swipePageTurnDirection(start, end);
       const handled = swipeDirection
         ? (this.queuePageTurn(swipeDirection), true)
@@ -1247,6 +1283,7 @@ export class OmniBookReaderView extends FileView {
     };
     const touchCancel = (): void => {
       touchStartPoint = null;
+      selectingText = false;
     };
     const keyDown = (event: KeyboardEvent): void => {
       this.noteReadingActivity();
@@ -1512,13 +1549,32 @@ export class OmniBookReaderView extends FileView {
 
   private async commitHighlight(color: HighlightColor, style: HighlightStyle): Promise<void> {
     if (!this.pendingSelection || !this.bookState || !this.reader) return;
-    const pending = this.pendingSelection;
-    const existing = this.bookState.highlights.find((item) => item.cfi === pending.cfi);
+    const pending = this.connectAdjacentHighlights(this.pendingSelection, color, style);
+    const existing = pending.connected[0];
+    for (const highlight of pending.connected) {
+      await this.reader.deleteAnnotation({ value: highlight.cfi });
+    }
+    if (pending.connected.length) {
+      const connected = new Set(pending.connected);
+      this.bookState.highlights = this.bookState.highlights.filter((item) => !connected.has(item));
+    }
     if (existing) {
+      existing.cfi = pending.cfi;
       existing.color = color;
       existing.style = style;
       existing.text = pending.text;
-      await this.reader.deleteAnnotation({ value: existing.cfi });
+      existing.tags = Array.from(new Set(pending.connected.flatMap((item) => item.tags)));
+      const notes = Array.from(new Set(pending.connected
+        .map((item) => item.note?.trim())
+        .filter((note): note is string => Boolean(note))));
+      if (notes.length) {
+        existing.note = notes.join("\n\n");
+        existing.noteUpdatedAt = Math.max(...pending.connected.map((item) => item.noteUpdatedAt ?? 0));
+      } else {
+        delete existing.note;
+        delete existing.noteUpdatedAt;
+      }
+      this.bookState.highlights.unshift(existing);
       await this.reader.addAnnotation(annotationFor(existing));
     } else {
       const highlight: ReaderHighlight = {
@@ -1539,6 +1595,56 @@ export class OmniBookReaderView extends FileView {
     await this.syncAnnotationDocuments();
     this.renderHighlights();
     this.clearPendingSelection();
+  }
+
+  private connectAdjacentHighlights(
+    pending: PendingSelection,
+    color: HighlightColor,
+    style: HighlightStyle,
+  ): { cfi: string; text: string; sectionIndex: number; connected: ReaderHighlight[] } {
+    const fallback = {
+      cfi: pending.cfi,
+      text: pending.text,
+      sectionIndex: pending.sectionIndex,
+      connected: this.bookState?.highlights.filter((item) => item.cfi === pending.cfi) ?? [],
+    };
+    const document = pending.selection.anchorNode?.ownerDocument;
+    if (!document || !this.reader || !this.bookState || !pending.selection.rangeCount) return fallback;
+
+    const candidates = this.bookState.highlights
+      .filter((item) => !item.stale && item.sectionIndex === pending.sectionIndex)
+      .filter((item) => item.cfi === pending.cfi || (item.color === color && item.style === style))
+      .sort((left, right) => Number(right.cfi === pending.cfi) - Number(left.cfi === pending.cfi))
+      .flatMap((item) => {
+        const navigation = this.reader?.resolveNavigation(item.cfi);
+        if (navigation?.index !== pending.sectionIndex || typeof navigation.anchor !== "function") return [];
+        const anchor = navigation.anchor as (ownerDocument: Document) => unknown;
+        const range = anchor(document);
+        return isDomRange(range) ? [{ value: item, range }] : [];
+      });
+
+    const connection = connectAdjacentHighlightRanges(
+      pending.selection.getRangeAt(0),
+      candidates,
+    );
+    if (!connection.connected.length) return fallback;
+    const text = connection.range.toString().replace(/\s+/g, " ").trim();
+    const notes = Array.from(new Set(connection.connected
+      .map((item) => item.note?.trim())
+      .filter((note): note is string => Boolean(note))));
+    if (!text || text.length > 10000 || notes.join("\n\n").length > 20000) return fallback;
+
+    try {
+      return {
+        cfi: this.reader.getCFI(pending.sectionIndex, connection.range),
+        text,
+        sectionIndex: pending.sectionIndex,
+        connected: connection.connected,
+      };
+    } catch (error) {
+      console.warn("[Omni Book Reader] Could not connect adjacent highlights", error);
+      return fallback;
+    }
   }
 
   private async deleteHighlight(highlight: ReaderHighlight): Promise<void> {

@@ -1,5 +1,11 @@
 export type PageTurnDirection = "previous" | "next";
 
+export interface TimedTouchPoint {
+  x: number;
+  y: number;
+  time: number;
+}
+
 interface KeyLike {
   key?: string;
   code?: string;
@@ -28,8 +34,8 @@ export function tapPageTurnDirection(clientX: number, viewportWidth: number): Pa
 }
 
 export function isPageTurnTap(
-  start: { x: number; y: number; time: number },
-  end: { x: number; y: number; time: number },
+  start: TimedTouchPoint,
+  end: TimedTouchPoint,
 ): boolean {
   const elapsed = end.time - start.time;
   if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > 550) return false;
@@ -37,8 +43,8 @@ export function isPageTurnTap(
 }
 
 export function swipePageTurnDirection(
-  start: { x: number; y: number; time: number },
-  end: { x: number; y: number; time: number },
+  start: TimedTouchPoint,
+  end: TimedTouchPoint,
 ): PageTurnDirection | null {
   const elapsed = end.time - start.time;
   const deltaX = end.x - start.x;
@@ -46,4 +52,14 @@ export function swipePageTurnDirection(
   if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > 1400) return null;
   if (Math.abs(deltaX) < 32 || Math.abs(deltaX) < Math.abs(deltaY) * 1.1) return null;
   return deltaX < 0 ? "next" : "previous";
+}
+
+export function shouldSuppressTouchPageTurn(
+  start: TimedTouchPoint,
+  end: TimedTouchPoint,
+  hasTextSelection: boolean,
+): boolean {
+  if (hasTextSelection) return true;
+  const elapsed = end.time - start.time;
+  return Number.isFinite(elapsed) && elapsed >= 500;
 }
