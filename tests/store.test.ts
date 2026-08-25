@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ReaderDataStore, normalizeReaderData, type DataAdapter } from "../src/store";
+import { ReaderDataStore, mergeReaderData, normalizeReaderData, type DataAdapter } from "../src/store";
 
 class MemoryAdapter implements DataAdapter {
   value: unknown = null;
@@ -128,5 +128,66 @@ describe("reader data store", () => {
     expect(store.getBook("Old/book.epub")).toBeUndefined();
     expect(store.getBook("New/book.epub")).toBeDefined();
     expect(adapter.maxConcurrentSaves).toBe(1);
+  });
+
+  it("merges data from a previous plugin folder without losing newer state", async () => {
+    const merged = mergeReaderData({
+      settings: { theme: "dark" },
+      books: {
+        "Books/shared.epub": {
+          sourceSignature: { size: 10, mtime: 20 },
+          position: { cfi: "epubcfi(/6/2!/4/2:2)", fraction: 0.8, updatedAt: 200 },
+          bookmarks: [],
+          highlights: [{
+            id: "current-highlight",
+            cfi: "epubcfi(/6/2!/4/2:2)",
+            text: "Current",
+            chapter: "Chapter",
+            color: "yellow",
+            style: "highlight",
+            tags: [],
+            sectionIndex: 0,
+            createdAt: 200,
+          }],
+          readingStats: { totalReadingMs: 100, lastOpenedAt: 200, lastReadAt: 200, furthestFraction: 0.8 },
+        },
+      },
+    }, {
+      settings: { theme: "light" },
+      books: {
+        "Books/shared.epub": {
+          sourceSignature: { size: 8, mtime: 10 },
+          position: { cfi: "epubcfi(/6/2!/4/2:1)", fraction: 0.5, updatedAt: 100 },
+          bookmarks: [{ id: "legacy-bookmark", cfi: "epubcfi(/6/2!/4/2:1)", fraction: 0.5, chapter: "Chapter", createdAt: 100 }],
+          highlights: [],
+          readingStats: { totalReadingMs: 300, lastOpenedAt: 100, lastReadAt: 100, furthestFraction: 0.5 },
+        },
+        "Books/legacy.epub": {
+          sourceSignature: { size: 5, mtime: 6 },
+          bookmarks: [],
+          highlights: [],
+        },
+      },
+    });
+
+    expect(merged.settings.theme).toBe("dark");
+    expect(merged.books["Books/shared.epub"]?.position?.fraction).toBe(0.8);
+    expect(merged.books["Books/shared.epub"]?.bookmarks).toHaveLength(1);
+    expect(merged.books["Books/shared.epub"]?.highlights).toHaveLength(1);
+    expect(merged.books["Books/shared.epub"]?.readingStats).toMatchObject({
+      totalReadingMs: 300,
+      lastOpenedAt: 200,
+      furthestFraction: 0.8,
+    });
+    expect(merged.books["Books/legacy.epub"]).toBeDefined();
+
+    const adapter = new MemoryAdapter();
+    adapter.value = merged;
+    const store = new ReaderDataStore(adapter);
+    await store.load();
+    const legacyEntry = { path: ".obsidian/plugins/omni-reader/data.json", value: merged };
+    expect(store.mergeLegacyData([legacyEntry])).toBe(1);
+    await store.flush();
+    expect(store.mergeLegacyData([legacyEntry])).toBe(0);
   });
 });

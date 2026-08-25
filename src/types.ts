@@ -90,6 +90,7 @@ export interface ReaderData {
   schemaVersion: 5;
   settings: ReaderSettings;
   books: Record<string, BookState>;
+  importedLegacyDataPaths: string[];
 }
 
 export interface FoliateTocItem {

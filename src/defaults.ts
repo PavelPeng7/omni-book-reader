@@ -64,5 +64,6 @@ export function createDefaultData(): ReaderData {
     schemaVersion: 5,
     settings: { ...DEFAULT_SETTINGS },
     books: {},
+    importedLegacyDataPaths: [],
   };
 }

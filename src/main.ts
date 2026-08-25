@@ -1,7 +1,8 @@
-import { App, Menu, Modal, Notice, Plugin, TFile, setIcon, type Command } from "obsidian";
+import { App, Menu, Modal, Notice, Plugin, TFile, normalizePath, setIcon, type Command } from "obsidian";
 import { AnnotationDocumentService, type AnnotationDocumentInput } from "./annotation-documents";
 import { OMNI_BOOK_READER_BOOKSHELF_VIEW_TYPE, OmniBookReaderBookshelfView } from "./bookshelf-view";
 import { uiLocale, uiText } from "./i18n";
+import { loadLegacyPluginData } from "./legacy-plugin-data";
 import { OMNI_BOOK_READER_VIEW_TYPE, OmniBookReaderView } from "./reader-view";
 import { OmniBookReaderSettingTab } from "./settings-ui";
 import { ReaderDataStore } from "./store";
@@ -65,6 +66,25 @@ export default class OmniBookReaderPlugin extends Plugin {
       console.error("[Omni Book Reader] Failed to persist data", error);
     });
     await this.store.load();
+    try {
+      const pluginsDirectory = normalizePath(`${this.app.vault.configDir}/plugins`);
+      const currentPluginDirectory = normalizePath(this.manifest.dir ?? `${pluginsDirectory}/${this.manifest.id}`);
+      const legacyData = await loadLegacyPluginData(
+        this.app.vault.adapter,
+        pluginsDirectory,
+        currentPluginDirectory,
+        this.manifest.id,
+      );
+      if (legacyData.length && this.store.mergeLegacyData(legacyData)) {
+        await this.store.flush();
+        new Notice(this.text(
+          "已从旧插件目录恢复阅读进度、高亮和统计数据",
+          "Recovered reading progress, highlights, and statistics from a previous plugin folder.",
+        ));
+      }
+    } catch (error) {
+      console.error("[Omni Book Reader] Could not recover data from a previous plugin folder", error);
+    }
     const t = (zh: string, en: string): string => this.text(zh, en);
     this.annotationDocuments = new AnnotationDocumentService(this.app.vault);
     try {

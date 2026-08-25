@@ -17,6 +17,11 @@ export interface DataAdapter {
   saveData(data: unknown): Promise<void>;
 }
 
+export interface LegacyDataEntry {
+  path: string;
+  value: unknown;
+}
+
 const finite = (value: unknown, fallback = 0): number =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
@@ -143,6 +148,54 @@ function normalizeBookState(value: unknown): BookState {
   };
 }
 
+function mergeById<T extends { id: string }>(legacy: T[], current: T[]): T[] {
+  return Array.from(new Map([...legacy, ...current].map((item) => [item.id, item])).values());
+}
+
+function mergeReadingStats(current?: ReadingStats, legacy?: ReadingStats): ReadingStats | undefined {
+  if (!current) return legacy;
+  if (!legacy) return current;
+  const completedAt = [current.completedAt, legacy.completedAt]
+    .filter((value): value is number => typeof value === "number" && value > 0)
+    .sort((left, right) => left - right)[0];
+  return {
+    totalReadingMs: Math.max(current.totalReadingMs, legacy.totalReadingMs),
+    lastOpenedAt: Math.max(current.lastOpenedAt, legacy.lastOpenedAt),
+    lastReadAt: Math.max(current.lastReadAt, legacy.lastReadAt),
+    furthestFraction: Math.max(current.furthestFraction, legacy.furthestFraction),
+    ...(completedAt ? { completedAt } : {}),
+  };
+}
+
+export function mergeReaderData(currentValue: unknown, legacyValue: unknown): ReaderData {
+  const current = normalizeReaderData(currentValue);
+  const legacy = normalizeReaderData(legacyValue);
+  const books = structuredClone(current.books);
+  for (const [path, legacyState] of Object.entries(legacy.books)) {
+    const currentState = books[path];
+    if (!currentState) {
+      books[path] = structuredClone(legacyState);
+      continue;
+    }
+    const position = [currentState.position, legacyState.position]
+      .filter((item): item is ReadingPosition => Boolean(item))
+      .sort((left, right) => right.updatedAt - left.updatedAt)[0];
+    const currentSignatureIsEmpty = currentState.sourceSignature.size === 0 && currentState.sourceSignature.mtime === 0;
+    books[path] = {
+      sourceSignature: currentSignatureIsEmpty ? legacyState.sourceSignature : currentState.sourceSignature,
+      ...(position ? { position } : {}),
+      bookmarks: mergeById(legacyState.bookmarks, currentState.bookmarks),
+      highlights: mergeById(legacyState.highlights, currentState.highlights),
+      annotationDocuments: currentState.annotationDocuments ?? legacyState.annotationDocuments,
+      readingStats: mergeReadingStats(currentState.readingStats, legacyState.readingStats),
+      ...(currentState.hiddenFromBookshelf || legacyState.hiddenFromBookshelf ? { hiddenFromBookshelf: true } : {}),
+      ...(currentState.inReadingList || legacyState.inReadingList ? { inReadingList: true } : {}),
+      customCoverPath: currentState.customCoverPath ?? legacyState.customCoverPath,
+    };
+  }
+  return { ...current, books };
+}
+
 export function normalizeReaderData(value: unknown): ReaderData {
   if (!value || typeof value !== "object") return createDefaultData();
   const input = value as Partial<ReaderData> & { schemaVersion?: number };
@@ -166,6 +219,13 @@ export function normalizeReaderData(value: unknown): ReaderData {
     schemaVersion: 5,
     settings: normalizeSettings(migratedSettings),
     books,
+    importedLegacyDataPaths: Array.isArray(input.importedLegacyDataPaths)
+      ? Array.from(new Set(input.importedLegacyDataPaths
+        .filter((path): path is string => typeof path === "string")
+        .map(normalizeVaultPath)
+        .filter(Boolean)))
+        .slice(0, 50)
+      : [],
   };
 }
 
@@ -187,6 +247,22 @@ export class ReaderDataStore {
       this.onError(error);
       this.data = createDefaultData();
     }
+  }
+
+  mergeLegacyData(entries: readonly LegacyDataEntry[]): number {
+    const imported = new Set(this.data.importedLegacyDataPaths);
+    let importedCount = 0;
+    for (const entry of entries) {
+      const path = normalizeVaultPath(entry.path);
+      if (!path || imported.has(path)) continue;
+      this.data = mergeReaderData(this.data, entry.value);
+      imported.add(path);
+      importedCount += 1;
+    }
+    if (!importedCount) return 0;
+    this.data.importedLegacyDataPaths = [...imported];
+    this.markChanged(0);
+    return importedCount;
   }
 
   get settings(): ReaderSettings {
@@ -287,6 +363,6 @@ export class ReaderDataStore {
   }
 
   private mergeById<T extends { id: string }>(left: T[], right: T[]): T[] {
-    return Array.from(new Map([...left, ...right].map((item) => [item.id, item])).values());
+    return mergeById(left, right);
   }
 }
