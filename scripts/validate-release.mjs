@@ -2,6 +2,8 @@ import { readFile, stat } from "node:fs/promises";
 
 const RELEASE_ASSETS = ["main.js", "manifest.json", "styles.css"];
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const COMMUNITY_PLUGIN_ID = "omnireader";
+const COMMUNITY_PLUGIN_NAME = "Omni Reader";
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
@@ -17,6 +19,19 @@ function requireVersion(value, source) {
 
 const manifest = await readJson("manifest.json");
 const packageJson = await readJson("package.json");
+
+if (manifest.id !== COMMUNITY_PLUGIN_ID) {
+  throw new Error(
+    `manifest.json id must remain ${COMMUNITY_PLUGIN_ID} for the existing community plugin entry.`,
+  );
+}
+
+if (manifest.name !== COMMUNITY_PLUGIN_NAME) {
+  throw new Error(
+    `manifest.json name must remain ${COMMUNITY_PLUGIN_NAME} for the existing community plugin entry.`,
+  );
+}
+
 const manifestVersion = requireVersion(manifest.version, "manifest.json");
 const packageVersion = requireVersion(packageJson.version, "package.json");
 
