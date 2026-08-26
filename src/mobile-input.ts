@@ -63,3 +63,11 @@ export function shouldSuppressTouchPageTurn(
   const elapsed = end.time - start.time;
   return Number.isFinite(elapsed) && elapsed >= 500;
 }
+
+export function isTextSelectionGesture(
+  startedWithSelection: boolean,
+  selectingText: boolean,
+  hasCurrentSelection: boolean,
+): boolean {
+  return startedWithSelection || selectingText || hasCurrentSelection;
+}

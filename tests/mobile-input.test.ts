@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isPageTurnTap,
+  isTextSelectionGesture,
   mobilePageTurnDirection,
   shouldSuppressTouchPageTurn,
   swipePageTurnDirection,
@@ -56,5 +57,12 @@ describe("mobilePageTurnDirection", () => {
     expect(shouldSuppressTouchPageTurn(start, { x: 82, y: 122, time: 1200 }, true)).toBe(true);
     expect(shouldSuppressTouchPageTurn(start, { x: 120, y: 122, time: 1500 }, false)).toBe(true);
     expect(shouldSuppressTouchPageTurn(start, { x: 120, y: 122, time: 1499 }, false)).toBe(false);
+  });
+
+  it("keeps selection-handle gestures suppressed if the native selection briefly collapses", () => {
+    expect(isTextSelectionGesture(true, false, false)).toBe(true);
+    expect(isTextSelectionGesture(false, true, false)).toBe(true);
+    expect(isTextSelectionGesture(false, false, true)).toBe(true);
+    expect(isTextSelectionGesture(false, false, false)).toBe(false);
   });
 });

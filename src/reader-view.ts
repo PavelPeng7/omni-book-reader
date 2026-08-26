@@ -32,6 +32,7 @@ import { extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from ".
 import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
 import {
   isPageTurnTap,
+  isTextSelectionGesture,
   mobilePageTurnDirection,
   shouldSuppressTouchPageTurn,
   swipePageTurnDirection,
@@ -1190,6 +1191,7 @@ export class OmniBookReaderView extends FileView {
     let selectionRetry: number | null = null;
     let touchStartPoint: { x: number; y: number; time: number; target: Element | null } | null = null;
     let selectingText = false;
+    let touchStartedWithSelection = false;
     let suppressClickUntil = 0;
     const capture = (): void => {
       if (selectionFrame !== null) window.cancelAnimationFrame(selectionFrame);
@@ -1204,8 +1206,10 @@ export class OmniBookReaderView extends FileView {
     };
     const touchStart = (event: TouchEvent): void => {
       selectingText = false;
+      const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
+      touchStartedWithSelection = Boolean(this.pendingSelection || (selection && !selection.isCollapsed));
       const touch = event.changedTouches.item(0);
-      touchStartPoint = event.touches.length === 1 && touch
+      touchStartPoint = !touchStartedWithSelection && event.touches.length === 1 && touch
         && this.canUseDocumentPageTurn(event.target as Element | null, document) ? {
         x: touch.clientX,
         y: touch.clientY,
@@ -1231,7 +1235,12 @@ export class OmniBookReaderView extends FileView {
       const touch = event.changedTouches.item(0);
       touchStartPoint = null;
       const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
-      const hasTextSelection = selectingText || Boolean(selection && !selection.isCollapsed);
+      const hasTextSelection = isTextSelectionGesture(
+        touchStartedWithSelection,
+        selectingText,
+        Boolean(selection && !selection.isCollapsed),
+      );
+      touchStartedWithSelection = false;
       selectingText = false;
       if (!start || !touch) {
         if (hasTextSelection) {
@@ -1283,6 +1292,7 @@ export class OmniBookReaderView extends FileView {
     };
     const touchCancel = (): void => {
       touchStartPoint = null;
+      touchStartedWithSelection = false;
       selectingText = false;
     };
     const keyDown = (event: KeyboardEvent): void => {
