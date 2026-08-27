@@ -51,6 +51,21 @@ function renderSettings(
       .onChange((tapToTurnPages) => host.updateReaderSettings({ tapToTurnPages })));
 
   new Setting(container)
+    .setName(t("阅读工具栏自动弱化", "Auto-hide reader chrome"))
+    .setDesc(t("翻页或滚动后弱化工具栏；移动鼠标、触摸正文中央或键盘聚焦时恢复。", "Fade reader controls after navigation and reveal them on pointer, touch, or keyboard activity."))
+    .addToggle((toggle) => toggle
+      .setValue(get().readerChromeAutoHide)
+      .onChange((readerChromeAutoHide) => host.updateReaderSettings({ readerChromeAutoHide })));
+
+  new Setting(container)
+    .setName(t("界面密度", "Interface density"))
+    .setDesc(t("紧凑模式只减少装饰留白，不缩小触控区域。", "Compact mode reduces decorative spacing without shrinking touch targets."))
+    .addDropdown((dropdown) => dropdown
+      .addOptions({ comfortable: t("舒适", "Comfortable"), compact: t("紧凑", "Compact") })
+      .setValue(get().interfaceDensity)
+      .onChange((interfaceDensity) => host.updateReaderSettings({ interfaceDensity: interfaceDensity as ReaderSettings["interfaceDensity"] })));
+
+  new Setting(container)
     .setName(t("字体", "Font"))
     .setDesc(t("跟随 Obsidian 可避免书内字体混杂；原书字体保留出版社排版。", "Follow Obsidian for consistent typography, or keep the publisher's fonts."))
     .addDropdown((dropdown) => dropdown
@@ -143,6 +158,28 @@ function renderSettings(
   new Setting(container).setName(t("标注导出", "Annotation export")).setHeading();
 
   new Setting(container)
+    .setName(t("默认高亮颜色", "Default highlight color"))
+    .setDesc(t("新建标注时优先使用该颜色。", "Use this color first when creating an annotation."))
+    .addDropdown((dropdown) => dropdown
+      .addOptions({ yellow: t("黄色", "Yellow"), green: t("绿色", "Green"), blue: t("蓝色", "Blue"), pink: t("粉色", "Pink") })
+      .setValue(get().defaultHighlightColor)
+      .onChange((defaultHighlightColor) => host.updateReaderSettings({ defaultHighlightColor: defaultHighlightColor as ReaderSettings["defaultHighlightColor"] })));
+
+  new Setting(container)
+    .setName(t("默认标注样式", "Default annotation style"))
+    .addDropdown((dropdown) => dropdown
+      .addOptions({ highlight: t("高亮", "Highlight"), underline: t("下划线", "Underline"), strikethrough: t("删除线", "Strikethrough"), squiggly: t("波浪线", "Squiggly") })
+      .setValue(get().defaultHighlightStyle)
+      .onChange((defaultHighlightStyle) => host.updateReaderSettings({ defaultHighlightStyle: defaultHighlightStyle as ReaderSettings["defaultHighlightStyle"] })));
+
+  new Setting(container)
+    .setName(t("合并相邻高亮", "Merge adjacent highlights"))
+    .setDesc(t("相同章节、颜色和样式的相邻选区保存为一条标注。", "Save adjacent selections with matching chapter, color, and style as one annotation."))
+    .addToggle((toggle) => toggle
+      .setValue(get().connectAdjacentHighlights)
+      .onChange((connectAdjacentHighlights) => host.updateReaderSettings({ connectAdjacentHighlights })));
+
+  new Setting(container)
     .setName(t("导出模板", "Export template"))
     .setDesc(t("控制高亮和笔记文档中每条标注的排版方式。", "Control how each annotation appears in highlight and note documents."))
     .addDropdown((dropdown) => dropdown
@@ -179,6 +216,7 @@ export class ReaderSettingsModal extends Modal {
   }
 
   onOpen(): void {
+    this.modalEl.addClass("omni-book-reader-settings-modal");
     const language = this.host.getReaderSettings().interfaceLanguage;
     this.titleEl.setText(uiText(language, "EPUB 阅读设置", "EPUB reading settings"));
     this.contentEl.addClass("omni-book-reader-settings");
@@ -246,6 +284,19 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
             control: {
               type: "toggle",
               key: "tapToTurnPages",
+            },
+          },
+          {
+            name: t("阅读工具栏自动弱化", "Auto-hide reader chrome"),
+            desc: t("翻页或滚动后弱化工具栏，交互时自动恢复。", "Fade reader controls after navigation and reveal them during interaction."),
+            control: { type: "toggle", key: "readerChromeAutoHide" },
+          },
+          {
+            name: t("界面密度", "Interface density"),
+            desc: t("紧凑模式不会缩小触控区域。", "Compact mode keeps full-size touch targets."),
+            control: {
+              type: "dropdown", key: "interfaceDensity",
+              options: { comfortable: t("舒适", "Comfortable"), compact: t("紧凑", "Compact") },
             },
           },
           {
@@ -355,6 +406,24 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
         cls: "omni-book-reader-settings-page",
         items: [
           {
+            name: t("默认高亮颜色", "Default highlight color"),
+            control: {
+              type: "dropdown", key: "defaultHighlightColor",
+              options: { yellow: t("黄色", "Yellow"), green: t("绿色", "Green"), blue: t("蓝色", "Blue"), pink: t("粉色", "Pink") },
+            },
+          },
+          {
+            name: t("默认标注样式", "Default annotation style"),
+            control: {
+              type: "dropdown", key: "defaultHighlightStyle",
+              options: { highlight: t("高亮", "Highlight"), underline: t("下划线", "Underline"), strikethrough: t("删除线", "Strikethrough"), squiggly: t("波浪线", "Squiggly") },
+            },
+          },
+          {
+            name: t("合并相邻高亮", "Merge adjacent highlights"),
+            control: { type: "toggle", key: "connectAdjacentHighlights" },
+          },
+          {
             name: t("导出模板", "Export template"),
             desc: t("控制高亮和笔记文档中每条标注的排版方式。", "Control how each annotation appears in highlight and note documents."),
             control: {
@@ -392,6 +461,11 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
       case "theme": return settings.theme;
       case "layout": return settings.layout;
       case "tapToTurnPages": return settings.tapToTurnPages;
+      case "readerChromeAutoHide": return settings.readerChromeAutoHide;
+      case "interfaceDensity": return settings.interfaceDensity;
+      case "defaultHighlightColor": return settings.defaultHighlightColor;
+      case "defaultHighlightStyle": return settings.defaultHighlightStyle;
+      case "connectAdjacentHighlights": return settings.connectAdjacentHighlights;
       case "font": return settings.font;
       case "fontSizePercent": return settings.fontSizePercent;
       case "lineHeight": return settings.lineHeight;
@@ -422,6 +496,21 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
         return;
       case "tapToTurnPages":
         if (typeof value === "boolean") this.host.updateReaderSettings({ tapToTurnPages: value });
+        return;
+      case "readerChromeAutoHide":
+        if (typeof value === "boolean") this.host.updateReaderSettings({ readerChromeAutoHide: value });
+        return;
+      case "connectAdjacentHighlights":
+        if (typeof value === "boolean") this.host.updateReaderSettings({ connectAdjacentHighlights: value });
+        return;
+      case "interfaceDensity":
+        if (value === "comfortable" || value === "compact") this.host.updateReaderSettings({ interfaceDensity: value });
+        return;
+      case "defaultHighlightColor":
+        if (value === "yellow" || value === "green" || value === "blue" || value === "pink") this.host.updateReaderSettings({ defaultHighlightColor: value });
+        return;
+      case "defaultHighlightStyle":
+        if (value === "highlight" || value === "underline" || value === "strikethrough" || value === "squiggly") this.host.updateReaderSettings({ defaultHighlightStyle: value });
         return;
       case "font":
         if (value === "obsidian" || value === "publisher" || value === "serif" || value === "sans") {

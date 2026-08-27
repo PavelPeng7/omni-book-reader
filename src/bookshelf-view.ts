@@ -9,6 +9,8 @@ export const OMNI_BOOK_READER_BOOKSHELF_VIEW_TYPE = "omni-book-reader-bookshelf-
 export interface BookshelfHost {
   store: ReaderDataStore;
   getReaderSettings(): ReaderSettings;
+  updateReaderSettings(patch: Partial<ReaderSettings>): void;
+  getCoverCacheDirectory(): string;
   openEpub(file: TFile): Promise<void>;
 }
 
@@ -27,6 +29,17 @@ const IMAGE_EXTENSIONS = new Set(["avif", "bmp", "gif", "jpeg", "jpg", "png", "s
 function fileSignature(file: TFile): string {
   return `${file.path}:${file.stat.size}:${file.stat.mtime}`;
 }
+
+function stableHash(value: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+interface PersistedCoverEntry { signature: string; file: string; mime: string }
 
 function imageMimeType(file: TFile): string {
   if (file.extension === "jpg") return "image/jpeg";
@@ -64,6 +77,7 @@ class BookDetailsModal extends Modal {
   }
 
   onOpen(): void {
+    this.modalEl.addClass("omni-book-reader-book-details-modal");
     const t = (zh: string, en: string): string => uiText(this.language, zh, en);
     this.titleEl.setText(t("书籍完整信息", "Book details"));
     const state = this.book;
@@ -96,6 +110,7 @@ class RenameBookModal extends Modal {
   }
 
   onOpen(): void {
+    this.modalEl.addClass("omni-book-reader-rename-modal");
     const t = (zh: string, en: string): string => uiText(this.language, zh, en);
     this.titleEl.setText(t("重命名书籍", "Rename book"));
     const input = this.contentEl.createEl("input", {
@@ -133,6 +148,7 @@ class DeleteBookModal extends Modal {
   constructor(app: import("obsidian").App, private readonly file: TFile, private readonly language: InterfaceLanguage, private readonly onConfirm: () => Promise<void>) { super(app); }
 
   onOpen(): void {
+    this.modalEl.addClass("omni-book-reader-delete-modal");
     const t = (zh: string, en: string): string => uiText(this.language, zh, en);
     this.titleEl.setText(t("删除书籍文件？", "Delete book file?"));
     this.contentEl.createEl("p", { text: t(`“${this.file.basename}”将移入系统回收站。此操作不会删除其他笔记。`, `“${this.file.basename}” will be moved to the system trash. Other notes will not be deleted.`) });
@@ -168,11 +184,13 @@ function relativeTime(timestamp: number, language: InterfaceLanguage): string {
 
 export class OmniBookReaderBookshelfView extends ItemView {
   private query = "";
-  private listOnly = false;
   private coverCache = new Map<string, { signature: string; url: string | null }>();
   private coverLoads = new Map<string, Promise<string | null>>();
   private coverQueue: Promise<void> = Promise.resolve();
   private coverGeneration = 0;
+  private coverObserver: IntersectionObserver | null = null;
+  private coverTasks = new WeakMap<Element, () => void>();
+  private persistedCovers: Record<string, PersistedCoverEntry> = {};
   private closed = false;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: BookshelfHost) {
@@ -197,17 +215,28 @@ export class OmniBookReaderBookshelfView extends ItemView {
 
   async onOpen(): Promise<void> {
     this.closed = false;
+    this.coverObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        this.coverObserver?.unobserve(entry.target);
+        this.coverTasks.get(entry.target)?.();
+        this.coverTasks.delete(entry.target);
+      }
+    }, { rootMargin: "480px 0px" });
     this.containerEl.addClass("omni-book-reader-bookshelf-container");
     this.registerEvent(this.app.vault.on("create", () => this.render()));
     this.registerEvent(this.app.vault.on("delete", () => this.render()));
     this.registerEvent(this.app.vault.on("rename", () => this.render()));
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.render()));
+    await this.loadPersistedCoverIndex();
     this.render();
   }
 
   async onClose(): Promise<void> {
     this.closed = true;
     this.coverGeneration += 1;
+    this.coverObserver?.disconnect();
+    this.coverObserver = null;
     for (const cached of this.coverCache.values()) {
       if (cached.url) URL.revokeObjectURL(cached.url);
     }
@@ -231,8 +260,7 @@ export class OmniBookReaderBookshelfView extends ItemView {
           completed: Boolean(state?.readingStats?.completedAt),
           inReadingList: Boolean(state?.inReadingList),
         };
-      })
-      .sort((left, right) => right.lastOpenedAt - left.lastOpenedAt || left.file.basename.localeCompare(right.file.basename, "zh-CN"));
+      });
   }
 
   private render(): void {
@@ -242,6 +270,9 @@ export class OmniBookReaderBookshelfView extends ItemView {
     content.addClass("omni-book-reader-bookshelf");
 
     const allBooks = this.getBooks();
+    const settings = this.plugin.getReaderSettings();
+    content.dataset.displayMode = settings.bookshelfDisplayMode;
+    content.toggleClass("is-large-library", allBooks.length >= 30);
     this.releaseRemovedCovers(new Set(allBooks.map((book) => book.file.path)));
     const heading = content.createDiv({ cls: "omni-book-reader-bookshelf-heading" });
     const titleGroup = heading.createDiv();
@@ -256,13 +287,39 @@ export class OmniBookReaderBookshelfView extends ItemView {
     summary.createSpan({ text: t(`${readingCount} 本在读`, `${readingCount} reading`) });
     summary.createSpan({ text: t(`${completedCount} 本读完`, `${completedCount} finished`) });
 
-    const filters = content.createDiv({ cls: "omni-book-reader-bookshelf-filters" });
-    const allFilter = filters.createEl("button", { text: t("全部书籍", "All books"), attr: { type: "button", "aria-pressed": String(!this.listOnly) } });
-    const listFilter = filters.createEl("button", { text: t("我的书单", "Reading list"), attr: { type: "button", "aria-pressed": String(this.listOnly) } });
-    allFilter.toggleClass("is-active", !this.listOnly);
-    listFilter.toggleClass("is-active", this.listOnly);
-    allFilter.addEventListener("click", () => { this.listOnly = false; this.render(); });
-    listFilter.addEventListener("click", () => { this.listOnly = true; this.render(); });
+    const recent = [...allBooks].filter((book) => book.lastOpenedAt).sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)[0];
+    if (recent) {
+      const resume = content.createEl("button", { cls: "omni-book-reader-continue", attr: { type: "button", "aria-label": t(`继续阅读 ${recent.file.basename}`, `Continue reading ${recent.file.basename}`) } });
+      const resumeCover = resume.createDiv({ cls: "omni-book-reader-continue-cover" });
+      this.attachCoverWhenVisible(recent.file, resumeCover, this.createCoverFallback(resumeCover, recent.file.basename));
+      const resumeBody = resume.createDiv({ cls: "omni-book-reader-continue-body" });
+      resumeBody.createDiv({ cls: "omni-book-reader-continue-kicker", text: t("继续阅读", "CONTINUE READING") });
+      resumeBody.createDiv({ cls: "omni-book-reader-continue-title", text: recent.file.basename });
+      resumeBody.createDiv({ cls: "omni-book-reader-continue-meta", text: `${percent(recent.progress)} · ${relativeTime(recent.lastOpenedAt, settings.interfaceLanguage)}` });
+      resumeBody.createDiv({ cls: "omni-book-reader-continue-progress" }).createDiv().setCssStyles({ width: percent(recent.progress) });
+      const resumeAction = resumeBody.createSpan({ cls: "omni-book-reader-continue-action", text: t("继续", "Continue") });
+      setIcon(resumeAction, "arrow-right");
+      resume.addEventListener("click", () => void this.plugin.openEpub(recent.file));
+    }
+
+    const toolbar = content.createDiv({ cls: "omni-book-reader-bookshelf-toolbar" });
+    const filters = toolbar.createDiv({ cls: "omni-book-reader-bookshelf-filters", attr: { role: "group", "aria-label": t("书架筛选", "Bookshelf filter") } });
+    for (const [value, label] of [["all", t("全部", "All")], ["reading", t("正在读", "Reading")], ["finished", t("已完成", "Finished")], ["reading-list", t("书单", "List")]] as const) {
+      const button = filters.createEl("button", { text: label, attr: { type: "button", "aria-pressed": String(settings.bookshelfFilter === value) } });
+      button.toggleClass("is-active", settings.bookshelfFilter === value);
+      button.addEventListener("click", () => this.plugin.updateReaderSettings({ bookshelfFilter: value }));
+    }
+    const controls = toolbar.createDiv({ cls: "omni-book-reader-bookshelf-controls" });
+    const sort = controls.createEl("select", { attr: { "aria-label": t("书架排序", "Sort bookshelf") } });
+    for (const [value, label] of [["recent", t("最近阅读", "Recent")], ["title", t("书名", "Title")], ["progress", t("阅读进度", "Progress")]] as const) sort.createEl("option", { value, text: label });
+    sort.value = settings.bookshelfSort;
+    sort.addEventListener("change", () => this.plugin.updateReaderSettings({ bookshelfSort: sort.value as ReaderSettings["bookshelfSort"] }));
+    for (const [value, icon, label] of [["list", "list", t("列表视图", "List view")], ["grid", "layout-grid", t("卡片视图", "Card view")], ["covers", "panels-top-left", t("纯封面视图", "Cover view")]] as const) {
+      const button = controls.createEl("button", { attr: { type: "button", "aria-label": label, title: label, "aria-pressed": String(settings.bookshelfDisplayMode === value) } });
+      setIcon(button, icon);
+      button.toggleClass("is-active", settings.bookshelfDisplayMode === value);
+      button.addEventListener("click", () => this.plugin.updateReaderSettings({ bookshelfDisplayMode: value }));
+    }
 
     const search = content.createDiv({ cls: "omni-book-reader-bookshelf-search" });
     const searchIcon = search.createSpan();
@@ -278,7 +335,7 @@ export class OmniBookReaderBookshelfView extends ItemView {
     });
 
     const section = content.createDiv({ cls: "omni-book-reader-bookshelf-section" });
-    section.createDiv({ cls: "omni-book-reader-bookshelf-section-title", text: this.listOnly ? t("我的书单", "Reading list") : t("全部书籍", "All books") });
+    section.createDiv({ cls: "omni-book-reader-bookshelf-section-title", text: t("书籍", "Books") });
     const list = section.createDiv({ cls: "omni-book-reader-bookshelf-list" });
     const empty = section.createDiv({ cls: "omni-book-reader-bookshelf-empty" });
     this.renderBookList(list, empty, allBooks);
@@ -289,13 +346,24 @@ export class OmniBookReaderBookshelfView extends ItemView {
     const language = this.plugin.getReaderSettings().interfaceLanguage;
     list.empty();
     const query = this.query.trim().toLocaleLowerCase("zh-CN");
-    const selectableBooks = this.listOnly ? allBooks.filter((book) => book.inReadingList) : allBooks;
+    const settings = this.plugin.getReaderSettings();
+    const selectableBooks = allBooks.filter((book) => {
+      if (settings.bookshelfFilter === "reading") return Boolean(book.lastOpenedAt && !book.completed);
+      if (settings.bookshelfFilter === "finished") return book.completed;
+      if (settings.bookshelfFilter === "reading-list") return book.inReadingList;
+      return true;
+    });
     const books = query
       ? selectableBooks.filter(({ file }) => `${file.basename}\n${file.path}`.toLocaleLowerCase("zh-CN").includes(query))
       : selectableBooks;
+    books.sort((left, right) => {
+      if (settings.bookshelfSort === "title") return left.file.basename.localeCompare(right.file.basename, "zh-CN");
+      if (settings.bookshelfSort === "progress") return right.progress - left.progress || right.lastOpenedAt - left.lastOpenedAt;
+      return right.lastOpenedAt - left.lastOpenedAt || left.file.basename.localeCompare(right.file.basename, "zh-CN");
+    });
     empty.toggleClass("is-visible", books.length === 0);
     empty.setText(allBooks.length
-      ? (this.listOnly ? t("书单中还没有 EPUB", "No EPUBs in your reading list yet") : t("没有匹配的 EPUB", "No matching EPUBs"))
+      ? t("当前筛选中没有匹配的 EPUB", "No EPUBs match the current filter")
       : t("Vault 中还没有 EPUB 文件", "There are no EPUB files in the Vault yet"));
 
     for (const book of books) {
@@ -304,9 +372,8 @@ export class OmniBookReaderBookshelfView extends ItemView {
         attr: { type: "button", "aria-label": t(`打开 ${book.file.basename}`, `Open ${book.file.basename}`) },
       });
       const cover = button.createDiv({ cls: "omni-book-reader-bookshelf-cover" });
-      const coverIcon = cover.createSpan();
-      setIcon(coverIcon, book.completed ? "badge-check" : "book-open");
-      void this.attachCover(book.file, cover, coverIcon);
+      const coverIcon = this.createCoverFallback(cover, book.file.basename, book.completed);
+      this.attachCoverWhenVisible(book.file, cover, coverIcon);
       const body = button.createDiv({ cls: "omni-book-reader-bookshelf-book-body" });
       body.createDiv({ cls: "omni-book-reader-bookshelf-book-title", text: book.file.basename });
       body.createDiv({ cls: "omni-book-reader-bookshelf-book-path", text: book.file.parent?.path || t("Vault 根目录", "Vault root") });
@@ -348,6 +415,18 @@ export class OmniBookReaderBookshelfView extends ItemView {
     }
   }
 
+  private createCoverFallback(cover: HTMLElement, title: string, completed = false): HTMLElement {
+    const fallback = cover.createSpan({ cls: "omni-book-reader-cover-fallback", text: title.trim().charAt(0).toLocaleUpperCase() || "O" });
+    if (completed) fallback.setAttribute("data-completed", "true");
+    return fallback;
+  }
+
+  private attachCoverWhenVisible(file: TFile, cover: HTMLElement, fallback: HTMLElement): void {
+    if (!this.coverObserver) return void this.attachCover(file, cover, fallback);
+    this.coverTasks.set(cover, () => void this.attachCover(file, cover, fallback));
+    this.coverObserver.observe(cover);
+  }
+
   private coverSignature(file: TFile): string {
     const coverPath = this.plugin.store.getBook(file.path)?.customCoverPath;
     const customCover = coverPath ? this.app.vault.getAbstractFileByPath(coverPath) : null;
@@ -356,7 +435,10 @@ export class OmniBookReaderBookshelfView extends ItemView {
 
   private async attachCover(file: TFile, cover: HTMLElement, fallbackIcon: HTMLElement): Promise<void> {
     const url = await this.getCoverUrl(file);
-    if (!url || this.closed || !cover.isConnected) return;
+    if (!url || this.closed || !cover.isConnected) {
+      cover.addClass("is-fallback");
+      return;
+    }
     const image = cover.createEl("img", {
       attr: { src: url, alt: this.text(`${file.basename} 封面`, `${file.basename} cover`), loading: "lazy", decoding: "async" },
     });
@@ -368,6 +450,7 @@ export class OmniBookReaderBookshelfView extends ItemView {
     image.addEventListener("error", () => {
       image.remove();
       cover.removeClass("has-image");
+      cover.addClass("is-fallback");
     }, { once: true });
   }
 
@@ -385,12 +468,20 @@ export class OmniBookReaderBookshelfView extends ItemView {
     const promise = this.enqueueCover(async () => {
       if (this.closed || generation !== this.coverGeneration) return null;
       try {
+        const persisted = await this.readPersistedCover(file.path, signature);
+        if (persisted) {
+          const url = URL.createObjectURL(persisted);
+          this.coverCache.set(file.path, { signature, url });
+          return url;
+        }
         const customCoverPath = this.plugin.store.getBook(file.path)?.customCoverPath;
         const customCover = customCoverPath ? this.app.vault.getAbstractFileByPath(customCoverPath) : null;
         if (customCover instanceof TFile && IMAGE_EXTENSIONS.has(customCover.extension.toLowerCase())) {
           const binary = await this.app.vault.readBinary(customCover);
           if (this.closed || generation !== this.coverGeneration) return null;
-          const url = URL.createObjectURL(new Blob([binary], { type: imageMimeType(customCover) }));
+          const blob = new Blob([binary], { type: imageMimeType(customCover) });
+          await this.persistCover(file.path, signature, blob);
+          const url = URL.createObjectURL(blob);
           this.coverCache.set(file.path, { signature, url });
           return url;
         }
@@ -403,6 +494,7 @@ export class OmniBookReaderBookshelfView extends ItemView {
         if (this.closed || generation !== this.coverGeneration) return null;
         const current = this.app.vault.getAbstractFileByPath(file.path);
         if (!(current instanceof TFile) || this.coverSignature(current) !== signature) return null;
+        if (blob) await this.persistCover(file.path, signature, blob);
         const url = blob ? URL.createObjectURL(blob) : null;
         this.coverCache.set(file.path, { signature, url });
         return url;
@@ -423,6 +515,52 @@ export class OmniBookReaderBookshelfView extends ItemView {
     const result = this.coverQueue.then(task, task);
     this.coverQueue = result.then(() => undefined, () => undefined);
     return result;
+  }
+
+  private async loadPersistedCoverIndex(): Promise<void> {
+    const adapter = this.app.vault.adapter;
+    const path = normalizePath(`${this.plugin.getCoverCacheDirectory()}/index.json`);
+    try {
+      if (!await adapter.exists(path)) return;
+      const value = JSON.parse(await adapter.read(path)) as unknown;
+      if (!value || typeof value !== "object") return;
+      for (const [bookPath, entry] of Object.entries(value as Record<string, unknown>)) {
+        if (!entry || typeof entry !== "object") continue;
+        const item = entry as Partial<PersistedCoverEntry>;
+        if (typeof item.signature === "string" && typeof item.file === "string" && typeof item.mime === "string") {
+          this.persistedCovers[bookPath] = { signature: item.signature, file: item.file, mime: item.mime };
+        }
+      }
+    } catch (error) {
+      console.warn("[Omni Book Reader] Could not read persisted cover cache", error);
+    }
+  }
+
+  private async readPersistedCover(bookPath: string, signature: string): Promise<Blob | null> {
+    const entry = this.persistedCovers[bookPath];
+    if (!entry || entry.signature !== signature) return null;
+    const path = normalizePath(`${this.plugin.getCoverCacheDirectory()}/${entry.file}`);
+    try {
+      if (!await this.app.vault.adapter.exists(path)) return null;
+      return new Blob([await this.app.vault.adapter.readBinary(path)], { type: entry.mime });
+    } catch {
+      return null;
+    }
+  }
+
+  private async persistCover(bookPath: string, signature: string, blob: Blob): Promise<void> {
+    if (!blob.size || blob.size > 20 * 1024 * 1024) return;
+    const adapter = this.app.vault.adapter;
+    const directory = this.plugin.getCoverCacheDirectory();
+    const file = `${stableHash(`${bookPath}:${signature}`)}.cover`;
+    try {
+      if (!await adapter.exists(directory)) await adapter.mkdir(directory);
+      await adapter.writeBinary(normalizePath(`${directory}/${file}`), await blob.arrayBuffer());
+      this.persistedCovers[bookPath] = { signature, file, mime: blob.type || "image/jpeg" };
+      await adapter.write(normalizePath(`${directory}/index.json`), JSON.stringify(this.persistedCovers));
+    } catch (error) {
+      console.warn("[Omni Book Reader] Could not persist cover cache", error);
+    }
   }
 
   private releaseRemovedCovers(paths: Set<string>): void {

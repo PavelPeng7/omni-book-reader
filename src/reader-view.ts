@@ -2,6 +2,7 @@ import { Overlayer } from "foliate-js/overlayer.js";
 import { FootnoteHandler } from "foliate-js/footnotes.js";
 import {
   FileView,
+  Menu,
   Modal,
   Notice,
   Platform,
@@ -30,6 +31,7 @@ import { installFoliateCustomElementGuard } from "./foliate-custom-element-guard
 import { uiLocale, uiText } from "./i18n";
 import { extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
 import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
+import { ReaderUiState } from "./reader-ui-state";
 import {
   isPageTurnTap,
   isTextSelectionGesture,
@@ -177,6 +179,7 @@ class ReadingStatsModal extends Modal {
   }
 
   onOpen(): void {
+    this.modalEl.addClass("omni-book-reader-stats-modal");
     const t = (zh: string, en: string): string => uiText(this.language, zh, en);
     this.titleEl.setText(t("阅读统计", "Reading statistics"));
     const grid = this.contentEl.createDiv({ cls: "omni-book-reader-stats-grid" });
@@ -220,6 +223,7 @@ class HighlightActionsModal extends Modal {
   }
 
   onOpen(): void {
+    this.modalEl.addClass("omni-book-reader-highlight-modal");
     const t = (zh: string, en: string): string => uiText(this.language, zh, en);
     this.titleEl.setText(t("编辑标注", "Edit annotation"));
     this.contentEl.createDiv({ cls: "omni-book-reader-highlight-quote", text: this.highlight.text });
@@ -304,6 +308,7 @@ class FootnotePreviewModal extends Modal {
   }
 
   onOpen(): void {
+    this.modalEl.addClass("omni-book-reader-footnote-modal");
     const t = (zh: string, en: string): string => uiText(this.language, zh, en);
     this.titleEl.setText(t("脚注预览", "Footnote preview"));
     const host = this.contentEl.createDiv({ cls: "omni-book-reader-footnote-preview" });
@@ -338,6 +343,7 @@ class ImagePreviewModal extends Modal {
   }
 
   onOpen(): void {
+    this.modalEl.addClass("omni-book-reader-image-modal");
     const t = (zh: string, en: string): string => uiText(this.language, zh, en);
     this.titleEl.setText(this.alt || t("书内图片", "Book image"));
     const viewport = this.contentEl.createDiv({ cls: "omni-book-reader-image-preview" });
@@ -378,6 +384,33 @@ class ImagePreviewModal extends Modal {
   }
 }
 
+class ReaderTutorialModal extends Modal {
+  constructor(app: ReaderPluginHost["app"], private readonly language: InterfaceLanguage) { super(app); }
+
+  onOpen(): void {
+    this.modalEl.addClass("omni-book-reader-tutorial-modal");
+    const t = (zh: string, en: string): string => uiText(this.language, zh, en);
+    this.titleEl.setText(t("开始舒适阅读", "Start comfortable reading"));
+    const steps = this.contentEl.createDiv({ cls: "omni-book-reader-tutorial" });
+    const tutorialSteps: Array<[string, string, string]> = [
+      ["library", t("从书架继续", "Continue from the shelf"), t("继续阅读卡片会带你回到最近位置。", "The continue card returns to your latest position.")],
+      ["list-tree", t("侧栏组织一切", "Everything in one sidebar"), t("目录、搜索、标注和书签会记住你的标签页。", "Contents, search, annotations, and bookmarks remember your tab.")],
+      ["mouse-pointer-2", t("选择即可标注", "Select to annotate"), t("新选区与已有标注使用不同工具。", "New selections and saved annotations use separate tools.")],
+      ["sliders-horizontal", t("快速排版与跳页", "Appearance and page jump"), t("顶部打开排版，底部页码可直接跳转。", "Open appearance at the top and jump from the page control below.")],
+    ];
+    for (const [icon, title, detail] of tutorialSteps) {
+      const card = steps.createDiv({ cls: "omni-book-reader-tutorial-step" });
+      const mark = card.createSpan();
+      setIcon(mark, icon);
+      const text = card.createDiv();
+      text.createDiv({ cls: "omni-book-reader-tutorial-title", text: title });
+      text.createDiv({ cls: "omni-book-reader-tutorial-detail", text: detail });
+    }
+    const actions = this.contentEl.createDiv({ cls: "omni-book-reader-modal-actions" });
+    actions.createEl("button", { cls: "mod-cta", text: t("开始阅读", "Start reading") }).addEventListener("click", () => this.close());
+  }
+}
+
 export class OmniBookReaderView extends FileView {
   private rootEl: HTMLElement | null = null;
   private sidebarEl: HTMLElement | null = null;
@@ -385,6 +418,7 @@ export class OmniBookReaderView extends FileView {
   private viewerEl: HTMLElement | null = null;
   private readingAreaEl: HTMLElement | null = null;
   private loadingEl: HTMLElement | null = null;
+  private localStatusEl: HTMLElement | null = null;
   private titleEl: HTMLElement | null = null;
   private chapterEl: HTMLElement | null = null;
   private progressEl: HTMLInputElement | null = null;
@@ -397,6 +431,8 @@ export class OmniBookReaderView extends FileView {
   private quickSettingsButton: HTMLButtonElement | null = null;
   private quickSettingsEl: HTMLElement | null = null;
   private selectionToolbarEl: HTMLElement | null = null;
+  private pageJumpEl: HTMLElement | null = null;
+  private pageButtonEl: HTMLButtonElement | null = null;
   private searchInputEl: HTMLInputElement | null = null;
   private searchStatusEl: HTMLElement | null = null;
   private searchResultsEl: HTMLElement | null = null;
@@ -436,6 +472,12 @@ export class OmniBookReaderView extends FileView {
   private sessionReadingMs = 0;
   private focusMode = false;
   private quickSettingsOpen = false;
+  private chromeTimer: number | null = null;
+  private localStatusTimer: number | null = null;
+  private readonly uiState = new ReaderUiState((overlay, chromeHidden) => {
+    this.rootEl?.toggleClass("is-chrome-hidden", chromeHidden);
+    this.rootEl?.setAttribute("data-active-overlay", overlay ?? "");
+  });
   private ownsFullscreen = false;
   private sidebarOpenBeforeFocus = false;
   private loadGeneration = 0;
@@ -479,6 +521,10 @@ export class OmniBookReaderView extends FileView {
   async onOpen(): Promise<void> {
     await this.ensureFoliateRuntimeCompatibility();
     this.buildShell();
+    if (!this.plugin.getReaderSettings().hasSeenReaderTutorial) {
+      this.plugin.updateReaderSettings({ hasSeenReaderTutorial: true });
+      window.setTimeout(() => this.openTutorial(), 250);
+    }
     this.registerDomEvent(document, "keydown", (event: KeyboardEvent) => this.handleMobileHardwareKey(event), true);
     this.registerDomEvent(document, "fullscreenchange", () => this.handleFullscreenChange());
     this.themeObserver = new MutationObserver(() => this.applySettings());
@@ -514,6 +560,9 @@ export class OmniBookReaderView extends FileView {
     const settings = this.plugin.getReaderSettings();
     this.rootEl?.setAttribute("data-reader-theme", settings.theme);
     this.rootEl?.setAttribute("data-width-mode", settings.widthMode);
+    this.rootEl?.setAttribute("data-layout", settings.layout);
+    this.rootEl?.setAttribute("data-density", settings.interfaceDensity);
+    if (!settings.readerChromeAutoHide) this.revealChrome(false);
     if (!this.reader) return;
     const renderer = this.reader.renderer;
     if (!renderer) return;
@@ -541,6 +590,10 @@ export class OmniBookReaderView extends FileView {
 
   toggleSidebar(): void {
     this.setSidebarOpen(!this.sidebarOpen);
+  }
+
+  openTutorial(): void {
+    new ReaderTutorialModal(this.app, this.language()).open();
   }
 
   toggleBookmark(): void {
@@ -606,6 +659,7 @@ export class OmniBookReaderView extends FileView {
 
   private buildShell(): void {
     const t = (zh: string, en: string): string => this.text(zh, en);
+    this.activeTab = this.plugin.getReaderSettings().lastSidebarTab;
     this.contentEl.empty();
     this.contentEl.addClass("omni-book-reader-view-content");
     const root = this.contentEl.createDiv({ cls: "omni-book-reader", attr: { tabindex: "-1" } });
@@ -625,20 +679,15 @@ export class OmniBookReaderView extends FileView {
     });
     this.bookmarkButton = iconButton(headerActions, "bookmark", t("添加或移除当前位置书签", "Add or remove bookmark here"));
     this.bookmarkButton.addEventListener("click", () => this.toggleBookmark());
-    const exportChapter = iconButton(headerActions, "file-down", t("导出当前章节 Markdown", "Export current chapter as Markdown"));
-    exportChapter.addEventListener("click", () => void this.exportCurrentChapter());
-    const stats = iconButton(headerActions, "chart-no-axes-column-increasing", t("阅读统计", "Reading statistics"));
-    stats.addEventListener("click", () => this.openReadingStats());
-    this.focusButton = iconButton(headerActions, "maximize", t("沉浸式阅读", "Immersive reading"));
-    this.focusButton.addEventListener("click", () => void this.toggleFocusMode());
-    this.quickSettingsButton = iconButton(root, "sliders-horizontal", t("阅读排版", "Reading appearance"));
-    this.quickSettingsButton.addClass("omni-book-reader-quick-settings-toggle");
+    this.quickSettingsButton = iconButton(headerActions, "sliders-horizontal", t("阅读排版", "Reading appearance"));
     this.quickSettingsButton.setAttribute("aria-expanded", "false");
     this.quickSettingsButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       this.toggleQuickSettings();
     });
+    const more = iconButton(headerActions, "ellipsis", t("更多阅读操作", "More reader actions"));
+    more.addEventListener("click", (event) => this.openMoreMenu(event));
     this.quickSettingsEl = this.buildQuickSettings(root);
 
     const body = root.createDiv({ cls: "omni-book-reader-body" });
@@ -670,7 +719,10 @@ export class OmniBookReaderView extends FileView {
     const immersiveFooter = readingArea.createDiv({ cls: "omni-book-reader-immersive-footer", attr: { "aria-label": t("当前阅读位置", "Current reading position") } });
     this.immersiveLocationEl = immersiveFooter.createSpan({ text: t("正在定位", "Locating") });
 
-    const footer = root.createDiv({ cls: "omni-book-reader-footer" });
+    const footer = root.createDiv({ cls: "omni-book-reader-footer", attr: { "aria-label": t("阅读导航", "Reading navigation") } });
+    const footerPrevious = iconButton(footer, "chevron-left", t("上一页", "Previous page"));
+    footerPrevious.addClass("omni-book-reader-bottom-nav-button");
+    footerPrevious.addEventListener("click", () => this.queuePageTurn("previous"));
     this.progressTextEl = footer.createSpan({ cls: "omni-book-reader-progress-text", text: "0%" });
     this.progressEl = footer.createEl("input", {
       cls: "omni-book-reader-progress",
@@ -685,11 +737,19 @@ export class OmniBookReaderView extends FileView {
       void this.reader?.goToFraction(value);
     });
     this.locationTextEl = footer.createSpan({ cls: "omni-book-reader-location", text: t("尚未定位", "Not located") });
+    this.pageButtonEl = footer.createEl("button", { cls: "omni-book-reader-page-jump-button", text: t("跳页", "Go to"), attr: { type: "button", "aria-haspopup": "dialog", "aria-expanded": "false" } });
+    this.pageButtonEl.addEventListener("click", () => this.togglePageJump());
+    const footerNext = iconButton(footer, "chevron-right", t("下一页", "Next page"));
+    footerNext.addClass("omni-book-reader-bottom-nav-button");
+    footerNext.addEventListener("click", () => this.queuePageTurn("next"));
     this.readingStatsEl = footer.createSpan({ cls: "omni-book-reader-reading-stats", text: t("本次 0 分钟", "This session 0 min") });
+    this.pageJumpEl = this.buildPageJump(root);
+    this.localStatusEl = root.createDiv({ cls: "omni-book-reader-local-status", attr: { role: "status", "aria-live": "polite" } });
 
     this.selectionToolbarEl = root.createDiv({ cls: "omni-book-reader-selection-toolbar" });
     this.selectionToolbarEl.setAttribute("role", "toolbar");
     this.selectionToolbarEl.setAttribute("aria-label", t("标注样式和颜色", "Annotation style and color"));
+    this.selectedHighlightStyle = this.plugin.getReaderSettings().defaultHighlightStyle;
     const styleButtons = new Map<HighlightStyle, HTMLButtonElement>();
     for (const [style, definition] of Object.entries(HIGHLIGHT_STYLES) as Array<[HighlightStyle, typeof HIGHLIGHT_STYLES[HighlightStyle]]>) {
       const button = iconButton(this.selectionToolbarEl, definition.icon, this.definitionLabel(definition));
@@ -709,11 +769,24 @@ export class OmniBookReaderView extends FileView {
       });
       button.addEventListener("click", () => void this.commitHighlight(color, this.selectedHighlightStyle));
     }
+    const quickHighlight = iconButton(this.selectionToolbarEl, "highlighter", t("使用默认样式高亮", "Highlight with defaults"));
+    quickHighlight.addClass("omni-book-reader-selection-primary");
+    quickHighlight.addEventListener("click", () => void this.commitHighlight(this.plugin.getReaderSettings().defaultHighlightColor, this.selectedHighlightStyle));
+    const copySelection = iconButton(this.selectionToolbarEl, "copy", t("复制选中文字", "Copy selected text"));
+    copySelection.addEventListener("click", () => void navigator.clipboard.writeText(this.pendingSelection?.text ?? ""));
+    const addNote = iconButton(this.selectionToolbarEl, "notebook-pen", t("高亮并添加笔记", "Highlight and add note"));
+    addNote.addEventListener("click", () => void this.commitHighlight(this.plugin.getReaderSettings().defaultHighlightColor, this.selectedHighlightStyle).then((highlight) => {
+      if (highlight) this.openHighlightActions(highlight);
+    }));
+    const selectionMore = iconButton(this.selectionToolbarEl, "ellipsis", t("更多选区操作", "More selection actions"));
+    selectionMore.addEventListener("click", (event) => this.openSelectionMenu(event));
     const cancelSelection = iconButton(this.selectionToolbarEl, "x", t("取消高亮", "Cancel highlight"));
     cancelSelection.addEventListener("click", () => this.clearPendingSelection());
 
     root.addEventListener("keydown", (event) => this.handleKeydown(event));
-    root.addEventListener("pointerdown", () => this.noteReadingActivity());
+    root.addEventListener("pointerdown", () => { this.noteReadingActivity(); this.revealChrome(); });
+    root.addEventListener("pointermove", () => this.revealChrome());
+    root.addEventListener("focusin", () => this.revealChrome());
     readingArea.addEventListener("wheel", (event) => this.handleWheel(event), { passive: false });
     this.layoutObserver?.disconnect();
     this.layoutObserver = new ResizeObserver(([entry]) => {
@@ -739,6 +812,20 @@ export class OmniBookReaderView extends FileView {
     const close = iconButton(header, "x", t("关闭阅读排版", "Close reading appearance"));
     close.addEventListener("click", () => this.toggleQuickSettings(false));
 
+    const presets = panel.createDiv({ cls: "omni-book-reader-appearance-presets", attr: { role: "group", "aria-label": t("排版预设", "Typography presets") } });
+    for (const [preset, label, patch] of [
+      ["comfortable", t("舒适", "Comfort"), { fontSizePercent: 100, lineHeight: 1.7, letterSpacing: 0.01, paragraphSpacing: 0.65, pageMargin: 48 }],
+      ["compact", t("紧凑", "Compact"), { fontSizePercent: 95, lineHeight: 1.5, letterSpacing: 0, paragraphSpacing: 0.35, pageMargin: 32 }],
+      ["large", t("大字", "Large"), { fontSizePercent: 125, lineHeight: 1.85, letterSpacing: 0.02, paragraphSpacing: 0.75, pageMargin: 40 }],
+    ] as const) {
+      const button = presets.createEl("button", { text: label, attr: { type: "button" } });
+      button.toggleClass("is-active", this.plugin.getReaderSettings().readingPreset === preset);
+      button.addEventListener("click", () => {
+        this.plugin.updateReaderSettings({ ...patch, readingPreset: preset });
+        this.rebuildQuickSettings(parent);
+      });
+    }
+
     const addRange = (
       label: string,
       min: number,
@@ -761,6 +848,7 @@ export class OmniBookReaderView extends FileView {
         const value = Number(input.value);
         valueEl.setText(format(value));
         update(value);
+        this.plugin.updateReaderSettings({ readingPreset: "custom" });
       });
     };
     const get = (): ReaderSettings => this.plugin.getReaderSettings();
@@ -817,9 +905,112 @@ export class OmniBookReaderView extends FileView {
 
   private toggleQuickSettings(force?: boolean): void {
     this.quickSettingsOpen = force ?? !this.quickSettingsOpen;
+    if (this.quickSettingsOpen) {
+      this.closePageJump();
+      if (this.pendingSelection) this.clearPendingSelection();
+      this.uiState.open("appearance");
+    } else {
+      this.uiState.close("appearance");
+    }
     this.quickSettingsEl?.toggleClass("is-open", this.quickSettingsOpen);
     this.quickSettingsButton?.toggleClass("is-active", this.quickSettingsOpen);
     this.quickSettingsButton?.setAttribute("aria-expanded", String(this.quickSettingsOpen));
+  }
+
+  private rebuildQuickSettings(parent: HTMLElement): void {
+    this.quickSettingsEl?.remove();
+    this.quickSettingsEl = this.buildQuickSettings(parent);
+    this.quickSettingsEl.addClass("is-open");
+    this.quickSettingsOpen = true;
+  }
+
+  private openMoreMenu(event: MouseEvent): void {
+    const t = (zh: string, en: string): string => this.text(zh, en);
+    const menu = new Menu();
+    menu.addItem((item) => item.setTitle(t("导出当前章节", "Export current chapter")).setIcon("file-down").onClick(() => void this.exportCurrentChapter()));
+    menu.addItem((item) => item.setTitle(t("阅读统计", "Reading statistics")).setIcon("chart-no-axes-column-increasing").onClick(() => this.openReadingStats()));
+    menu.addItem((item) => item.setTitle(this.focusMode ? t("退出沉浸阅读", "Exit immersive reading") : t("沉浸阅读", "Immersive reading")).setIcon("maximize").onClick(() => void this.toggleFocusMode()));
+    menu.addItem((item) => item.setTitle(t("完整阅读设置", "Full reader settings")).setIcon("settings").onClick(() => new ReaderSettingsModal(this.app, this.plugin, this.fixedLayout).open()));
+    menu.showAtMouseEvent(event);
+  }
+
+  private openSelectionMenu(event: MouseEvent): void {
+    const pending = this.pendingSelection;
+    if (!pending) return;
+    const t = (zh: string, en: string): string => this.text(zh, en);
+    const menu = new Menu();
+    menu.addItem((item) => item.setTitle(t("复制原文链接", "Copy source link")).setIcon("link").onClick(() => {
+      const vault = encodeURIComponent(this.app.vault.getName());
+      const path = encodeURIComponent(this.file?.path ?? "");
+      const cfi = encodeURIComponent(pending.cfi);
+      void navigator.clipboard.writeText(`obsidian://omni-book-reader?sourceVault=${vault}&path=${path}&cfi=${cfi}`);
+    }));
+    menu.addItem((item) => item.setTitle(t("网页搜索", "Search the web")).setIcon("search").onClick(() => window.open(`https://www.google.com/search?q=${encodeURIComponent(pending.text)}`)));
+    menu.addItem((item) => item.setTitle(t("翻译选中文字", "Translate selection")).setIcon("languages").onClick(() => window.open(`https://translate.google.com/?sl=auto&tl=auto&text=${encodeURIComponent(pending.text)}&op=translate`)));
+    menu.showAtMouseEvent(event);
+  }
+
+  private buildPageJump(parent: HTMLElement): HTMLElement {
+    const t = (zh: string, en: string): string => this.text(zh, en);
+    const popover = parent.createDiv({ cls: "omni-book-reader-page-jump", attr: { role: "dialog", "aria-label": t("跳转阅读位置", "Go to reading position") } });
+    popover.createDiv({ cls: "omni-book-reader-page-jump-title", text: t("跳转阅读位置", "Go to reading position") });
+    const input = popover.createEl("input", { type: "number", attr: { min: "1", step: "1", "aria-label": t("位置编号", "Location number") } });
+    const submit = popover.createEl("button", { cls: "mod-cta", text: t("跳转", "Go"), attr: { type: "button" } });
+    const go = (): void => {
+      const total = this.currentLocation.location?.total ?? 0;
+      const requested = Math.round(Number(input.value));
+      if (!this.reader || !total || !Number.isFinite(requested)) return;
+      void this.reader.goToFraction(Math.min(1, Math.max(0, (requested - 1) / Math.max(1, total - 1))));
+      this.closePageJump();
+    };
+    submit.addEventListener("click", go);
+    input.addEventListener("keydown", (event) => { if (event.key === "Enter") go(); });
+    return popover;
+  }
+
+  private togglePageJump(): void {
+    const open = !this.pageJumpEl?.hasClass("is-open");
+    if (!open) return this.closePageJump();
+    this.toggleQuickSettings(false);
+    if (this.pendingSelection) this.clearPendingSelection();
+    const total = this.currentLocation.location?.total ?? 0;
+    const input = this.pageJumpEl?.querySelector<HTMLInputElement>("input");
+    if (input) {
+      input.max = String(Math.max(1, total));
+      input.value = String(this.currentLocation.location?.current ?? 1);
+    }
+    this.pageJumpEl?.addClass("is-open");
+    this.pageButtonEl?.setAttribute("aria-expanded", "true");
+    this.uiState.open("page-jump");
+    window.setTimeout(() => input?.focus(), 0);
+  }
+
+  private closePageJump(): void {
+    this.pageJumpEl?.removeClass("is-open");
+    this.pageButtonEl?.setAttribute("aria-expanded", "false");
+    this.uiState.close("page-jump");
+  }
+
+  private revealChrome(schedule = true): void {
+    if (this.chromeTimer !== null) window.clearTimeout(this.chromeTimer);
+    this.chromeTimer = null;
+    this.uiState.revealChrome();
+    if (schedule && this.plugin.getReaderSettings().readerChromeAutoHide) {
+      this.chromeTimer = window.setTimeout(() => {
+        this.chromeTimer = null;
+        this.uiState.hideChrome();
+      }, 2200);
+    }
+  }
+
+  private showLocalStatus(message: string): void {
+    if (this.localStatusTimer !== null) window.clearTimeout(this.localStatusTimer);
+    this.localStatusEl?.setText(message);
+    this.localStatusEl?.addClass("is-visible");
+    this.localStatusTimer = window.setTimeout(() => {
+      this.localStatusTimer = null;
+      this.localStatusEl?.removeClass("is-visible");
+    }, 1800);
   }
 
   private buildSidebar(parent: HTMLElement): HTMLElement {
@@ -1551,15 +1742,19 @@ export class OmniBookReaderView extends FileView {
       const cfi = this.reader.getCFI(sectionIndex, range);
       this.pendingSelection = { cfi, text, sectionIndex, selection };
       this.selectionToolbarEl?.addClass("is-visible");
+      this.uiState.open("selection");
+      this.positionSelectionToolbar(range, document);
     } catch (error) {
       console.warn("[Omni Book Reader] Could not create CFI for selection", error);
       this.clearPendingSelection();
     }
   }
 
-  private async commitHighlight(color: HighlightColor, style: HighlightStyle): Promise<void> {
-    if (!this.pendingSelection || !this.bookState || !this.reader) return;
-    const pending = this.connectAdjacentHighlights(this.pendingSelection, color, style);
+  private async commitHighlight(color: HighlightColor, style: HighlightStyle): Promise<ReaderHighlight | null> {
+    if (!this.pendingSelection || !this.bookState || !this.reader) return null;
+    const pending = this.plugin.getReaderSettings().connectAdjacentHighlights
+      ? this.connectAdjacentHighlights(this.pendingSelection, color, style)
+      : { cfi: this.pendingSelection.cfi, text: this.pendingSelection.text, sectionIndex: this.pendingSelection.sectionIndex, connected: [] };
     const existing = pending.connected[0];
     for (const highlight of pending.connected) {
       await this.reader.deleteAnnotation({ value: highlight.cfi });
@@ -1568,6 +1763,7 @@ export class OmniBookReaderView extends FileView {
       const connected = new Set(pending.connected);
       this.bookState.highlights = this.bookState.highlights.filter((item) => !connected.has(item));
     }
+    let saved: ReaderHighlight;
     if (existing) {
       existing.cfi = pending.cfi;
       existing.color = color;
@@ -1586,6 +1782,7 @@ export class OmniBookReaderView extends FileView {
       }
       this.bookState.highlights.unshift(existing);
       await this.reader.addAnnotation(annotationFor(existing));
+      saved = existing;
     } else {
       const highlight: ReaderHighlight = {
         id: createId("highlight"),
@@ -1600,11 +1797,34 @@ export class OmniBookReaderView extends FileView {
       };
       this.bookState.highlights.unshift(highlight);
       await this.reader.addAnnotation(annotationFor(highlight));
+      saved = highlight;
     }
     this.plugin.store.markChanged(0);
     await this.syncAnnotationDocuments();
     this.renderHighlights();
     this.clearPendingSelection();
+    this.plugin.updateReaderSettings({ defaultHighlightColor: color, defaultHighlightStyle: style });
+    return saved;
+  }
+
+  private positionSelectionToolbar(range: Range, document: Document): void {
+    if (Platform.isMobile || !this.selectionToolbarEl || !this.rootEl) return;
+    const frame = document.defaultView?.frameElement;
+    if (!(frame instanceof HTMLElement)) return;
+    const selectionRect = range.getBoundingClientRect();
+    const frameRect = frame.getBoundingClientRect();
+    const rootRect = this.rootEl.getBoundingClientRect();
+    window.requestAnimationFrame(() => {
+      const toolbar = this.selectionToolbarEl;
+      if (!toolbar?.isConnected) return;
+      const width = toolbar.offsetWidth;
+      const height = toolbar.offsetHeight;
+      const center = frameRect.left - rootRect.left + selectionRect.left + selectionRect.width / 2;
+      const left = Math.min(rootRect.width - width / 2 - 10, Math.max(width / 2 + 10, center));
+      const above = frameRect.top - rootRect.top + selectionRect.top - height - 12;
+      const top = above > 8 ? above : frameRect.top - rootRect.top + selectionRect.bottom + 12;
+      toolbar.setCssStyles({ left: `${left}px`, top: `${Math.min(rootRect.height - height - 10, Math.max(8, top))}px`, bottom: "auto" });
+    });
   }
 
   private connectAdjacentHighlights(
@@ -1666,7 +1886,7 @@ export class OmniBookReaderView extends FileView {
     this.plugin.store.markChanged(0);
     await this.syncAnnotationDocuments();
     this.renderHighlights();
-    new Notice(this.text("已删除高亮", "Highlight deleted"));
+    this.showLocalStatus(this.text("高亮已删除", "Highlight deleted"));
   }
 
   private openHighlightActions(highlight: ReaderHighlight): void {
@@ -1700,7 +1920,7 @@ export class OmniBookReaderView extends FileView {
     this.plugin.store.markChanged(0);
     await this.syncAnnotationDocuments();
     this.renderHighlights();
-    new Notice(note ? this.text("标注与笔记已保存", "Annotation and note saved") : this.text("标注已保存", "Annotation saved"));
+    this.showLocalStatus(note ? this.text("标注与笔记已保存", "Annotation and note saved") : this.text("标注已保存", "Annotation saved"));
   }
 
   private async syncAnnotationDocuments(): Promise<boolean> {
@@ -1736,6 +1956,7 @@ export class OmniBookReaderView extends FileView {
     }
     this.pendingSelection = null;
     this.selectionToolbarEl?.removeClass("is-visible");
+    this.uiState.close("selection");
   }
 
   private onRelocate(location: FoliateLocation): void {
@@ -1757,9 +1978,11 @@ export class OmniBookReaderView extends FileView {
         ? this.text(`第 ${loc} / ${total} 页`, `Page ${loc} / ${total}`)
         : loc ? this.text(`位置 ${loc}`, `Location ${loc}`) : "";
     this.locationTextEl?.setText(locationText);
+    this.pageButtonEl?.setText(loc && total ? `${loc} / ${total}` : (page ? this.text(`第 ${page} 页`, `Page ${page}`) : percentage(fraction)));
     this.immersiveLocationEl?.setText(locationText || this.text("正在定位", "Locating"));
     this.updateCurrentToc(location.tocItem?.href);
     this.updateBookmarkButton();
+    this.revealChrome();
 
     if (this.bookState?.readingStats) {
       this.bookState.readingStats.furthestFraction = Math.max(this.bookState.readingStats.furthestFraction, fraction);
@@ -2034,8 +2257,19 @@ export class OmniBookReaderView extends FileView {
       this.highlightPanelEl.createDiv({ cls: "omni-book-reader-empty", text: t("没有匹配筛选条件的标注", "No annotations match these filters") });
       return;
     }
+    const groups = new Map<string, ReaderHighlight[]>();
     for (const highlight of filteredItems) {
-      const row = this.highlightPanelEl.createDiv({ cls: `omni-book-reader-saved-item is-highlight is-style-${highlight.style}${highlight.stale ? " is-stale" : ""}` });
+      const group = groups.get(highlight.chapter) ?? [];
+      group.push(highlight);
+      groups.set(highlight.chapter, group);
+    }
+    for (const [chapter, highlights] of groups) {
+      const groupEl = this.highlightPanelEl.createDiv({ cls: "omni-book-reader-highlight-group" });
+      const heading = groupEl.createDiv({ cls: "omni-book-reader-highlight-group-heading" });
+      heading.createSpan({ text: chapter });
+      heading.createSpan({ text: String(highlights.length) });
+      for (const highlight of highlights) {
+      const row = groupEl.createDiv({ cls: `omni-book-reader-saved-item is-highlight is-style-${highlight.style}${highlight.stale ? " is-stale" : ""}` });
       row.setCssProps({ "--highlight-color": HIGHLIGHT_COLORS[highlight.color].value });
       const open = row.createEl("button", { cls: "omni-book-reader-saved-content", attr: { type: "button" } });
       open.createDiv({ cls: "omni-book-reader-highlight-text", text: highlight.text });
@@ -2051,6 +2285,7 @@ export class OmniBookReaderView extends FileView {
       note.addEventListener("click", () => this.openHighlightActions(highlight));
       const remove = iconButton(row, "trash-2", t("删除高亮", "Delete highlight"));
       remove.addEventListener("click", () => void this.deleteHighlight(highlight));
+      }
     }
   }
 
@@ -2150,6 +2385,9 @@ export class OmniBookReaderView extends FileView {
 
   private activateTab(tab: SidebarTab): void {
     this.activeTab = tab;
+    if (tab !== "search" && this.plugin.getReaderSettings().lastSidebarTab !== tab) {
+      this.plugin.updateReaderSettings({ lastSidebarTab: tab });
+    }
     for (const [key, button] of this.tabButtons) {
       const active = key === tab;
       button.toggleClass("is-active", active);
@@ -2169,7 +2407,8 @@ export class OmniBookReaderView extends FileView {
     if (event.defaultPrevented) return;
     if (isEditableTarget(event.target)) return;
     if (event.key === "Escape") {
-      if (this.quickSettingsOpen) this.toggleQuickSettings(false);
+      if (this.pageJumpEl?.hasClass("is-open")) this.closePageJump();
+      else if (this.quickSettingsOpen) this.toggleQuickSettings(false);
       else if (this.pendingSelection) this.clearPendingSelection();
       else if (this.focusMode) void this.toggleFocusMode(false);
       else if (Platform.isMobile && this.sidebarOpen) this.setSidebarOpen(false);
@@ -2279,6 +2518,10 @@ export class OmniBookReaderView extends FileView {
   }
 
   private async cleanupReader(invalidateLoad = true): Promise<void> {
+    if (this.chromeTimer !== null) window.clearTimeout(this.chromeTimer);
+    this.chromeTimer = null;
+    if (this.localStatusTimer !== null) window.clearTimeout(this.localStatusTimer);
+    this.localStatusTimer = null;
     if (invalidateLoad) this.loadGeneration += 1;
     this.saveCurrentPosition();
     this.tickReadingStats();

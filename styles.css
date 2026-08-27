@@ -9,6 +9,16 @@
   --omni-book-reader-border: var(--background-modifier-border);
   --omni-book-reader-surface: var(--background-primary);
   --omni-book-reader-surface-alt: var(--background-secondary);
+  --omni-border: var(--background-modifier-border);
+  --omni-surface: var(--background-primary);
+  --omni-surface-raised: var(--background-primary-alt);
+  --omni-text: var(--text-normal);
+  --omni-muted: var(--text-muted);
+  --omni-accent: var(--interactive-accent);
+  --omni-radius-control: 999px;
+  --omni-radius-card: 20px;
+  --omni-touch-target: 44px;
+  --omni-safe-bottom: env(safe-area-inset-bottom, 0px);
   position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
@@ -1035,12 +1045,16 @@ body.omni-book-reader-immersive-mode {
 
 /* Botanical / Organic Serif design system */
 .omni-book-reader,
-.modal-container:has(.omni-book-reader-highlight-quote),
-.modal-container:has(.omni-book-reader-footnote-preview),
-.modal-container:has(.omni-book-reader-image-preview),
-.modal-container:has(.omni-book-reader-stats-grid),
-.modal-container:has(.omni-book-reader-recent-list),
-.modal-container:has(.omni-book-reader-settings),
+.omni-book-reader-highlight-modal,
+.omni-book-reader-footnote-modal,
+.omni-book-reader-image-modal,
+.omni-book-reader-stats-modal,
+.omni-book-reader-settings-modal,
+.omni-book-reader-book-details-modal,
+.omni-book-reader-rename-modal,
+.omni-book-reader-delete-modal,
+.omni-book-reader-recent-modal,
+.omni-book-reader-tutorial-modal,
 .omni-book-reader-settings-page,
 .omni-book-reader-bookshelf {
   --pavel-botanical-paper: #f9f8f4;
@@ -1065,12 +1079,16 @@ body.omni-book-reader-immersive-mode {
 
 .omni-book-reader[data-reader-theme="dark"],
 body.theme-dark .omni-book-reader[data-reader-theme="auto"],
-body.theme-dark .modal-container:has(.omni-book-reader-highlight-quote),
-body.theme-dark .modal-container:has(.omni-book-reader-footnote-preview),
-body.theme-dark .modal-container:has(.omni-book-reader-image-preview),
-body.theme-dark .modal-container:has(.omni-book-reader-stats-grid),
-body.theme-dark .modal-container:has(.omni-book-reader-recent-list),
-body.theme-dark .modal-container:has(.omni-book-reader-settings),
+body.theme-dark .omni-book-reader-highlight-modal,
+body.theme-dark .omni-book-reader-footnote-modal,
+body.theme-dark .omni-book-reader-image-modal,
+body.theme-dark .omni-book-reader-stats-modal,
+body.theme-dark .omni-book-reader-settings-modal,
+body.theme-dark .omni-book-reader-book-details-modal,
+body.theme-dark .omni-book-reader-rename-modal,
+body.theme-dark .omni-book-reader-delete-modal,
+body.theme-dark .omni-book-reader-recent-modal,
+body.theme-dark .omni-book-reader-tutorial-modal,
 body.theme-dark .omni-book-reader-settings-page,
 body.theme-dark .omni-book-reader-bookshelf {
   --pavel-botanical-paper: #19231d;
@@ -1183,10 +1201,14 @@ body.theme-dark .omni-book-reader-bookshelf {
 .omni-book-reader button:focus-visible,
 .omni-book-reader input:focus-visible,
 .omni-book-reader select:focus-visible,
-.modal-container:has([class*="omni-book-reader-"]) button:focus-visible,
-.modal-container:has([class*="omni-book-reader-"]) input:focus-visible,
-.modal-container:has([class*="omni-book-reader-"]) textarea:focus-visible,
-.modal-container:has([class*="omni-book-reader-"]) select:focus-visible {
+.modal.omni-book-reader-highlight-modal :is(button, input, textarea, select):focus-visible,
+.modal.omni-book-reader-footnote-modal :is(button, input, textarea, select):focus-visible,
+.modal.omni-book-reader-image-modal :is(button, input, textarea, select):focus-visible,
+.modal.omni-book-reader-stats-modal :is(button, input, textarea, select):focus-visible,
+.modal.omni-book-reader-settings-modal :is(button, input, textarea, select):focus-visible,
+.modal.omni-book-reader-book-details-modal :is(button, input, textarea, select):focus-visible,
+.modal.omni-book-reader-rename-modal :is(button, input, textarea, select):focus-visible,
+.modal.omni-book-reader-delete-modal :is(button, input, textarea, select):focus-visible {
   outline: 2px solid var(--pavel-botanical-sage);
   outline-offset: 2px;
   box-shadow: none;
@@ -1595,7 +1617,7 @@ body.theme-dark .omni-book-reader-bookshelf {
   border-radius: 999px;
 }
 
-.modal-container:has([class*="omni-book-reader-"]) .modal {
+.modal:is(.omni-book-reader-highlight-modal, .omni-book-reader-footnote-modal, .omni-book-reader-image-modal, .omni-book-reader-stats-modal, .omni-book-reader-settings-modal, .omni-book-reader-book-details-modal, .omni-book-reader-rename-modal, .omni-book-reader-delete-modal, .omni-book-reader-recent-modal, .omni-book-reader-tutorial-modal) {
   color: var(--pavel-botanical-forest);
   background: var(--pavel-botanical-paper);
   border: 1px solid var(--pavel-botanical-stone);
@@ -1603,7 +1625,7 @@ body.theme-dark .omni-book-reader-bookshelf {
   box-shadow: var(--pavel-botanical-shadow-lg);
 }
 
-.modal-container:has([class*="omni-book-reader-"]) .modal-title {
+.modal:is(.omni-book-reader-highlight-modal, .omni-book-reader-footnote-modal, .omni-book-reader-image-modal, .omni-book-reader-stats-modal, .omni-book-reader-settings-modal, .omni-book-reader-book-details-modal, .omni-book-reader-rename-modal, .omni-book-reader-delete-modal, .omni-book-reader-recent-modal, .omni-book-reader-tutorial-modal) .modal-title {
   color: var(--pavel-botanical-forest);
   font-family: var(--pavel-botanical-serif);
   font-size: 24px;
@@ -1704,7 +1726,7 @@ body.theme-dark .omni-book-reader-bookshelf {
 
 @media (prefers-reduced-motion: reduce) {
   .omni-book-reader *,
-  .modal-container:has([class*="omni-book-reader-"]) * {
+  .modal:is(.omni-book-reader-highlight-modal, .omni-book-reader-footnote-modal, .omni-book-reader-image-modal, .omni-book-reader-stats-modal, .omni-book-reader-settings-modal, .omni-book-reader-book-details-modal, .omni-book-reader-rename-modal, .omni-book-reader-delete-modal, .omni-book-reader-recent-modal, .omni-book-reader-tutorial-modal) * {
     scroll-behavior: auto !important;
     transition-duration: .01ms !important;
     animation-duration: .01ms !important;
@@ -2550,6 +2572,227 @@ body.theme-dark .omni-book-reader-bookshelf {
   gap: 10px;
   padding: 8px 0;
   border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.modal:is(.omni-book-reader-recent-modal, .omni-book-reader-tutorial-modal) :is(button, input, textarea, select):focus-visible {
+  outline: 2px solid var(--pavel-botanical-sage);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* Reader interaction refresh */
+.omni-book-reader-header-actions { margin-right: 0; }
+
+.omni-book-reader-icon-button,
+.omni-book-reader-tab,
+.omni-book-reader-sidebar-close,
+.omni-book-reader-bottom-nav-button,
+.omni-book-reader-page-jump-button {
+  min-width: var(--omni-touch-target, 44px);
+  min-height: var(--omni-touch-target, 44px);
+}
+
+.omni-book-reader-header,
+.omni-book-reader-footer,
+.omni-book-reader-page-button {
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.omni-book-reader.is-chrome-hidden:not(.is-sidebar-open) .omni-book-reader-header {
+  opacity: .18;
+  transform: translateY(-6px);
+}
+
+.omni-book-reader.is-chrome-hidden:not(.is-sidebar-open) .omni-book-reader-footer {
+  opacity: .18;
+  transform: translateY(6px);
+}
+
+.omni-book-reader.is-chrome-hidden .omni-book-reader-page-button {
+  opacity: .08;
+}
+
+.omni-book-reader-footer {
+  grid-template-columns: 44px 42px minmax(80px, 1fr) minmax(80px, auto) minmax(82px, auto) 44px minmax(90px, auto);
+}
+
+.omni-book-reader-bottom-nav-button {
+  width: 44px;
+  height: 44px;
+}
+
+.omni-book-reader[data-layout="paginated"] .omni-book-reader-reading-area { grid-template-columns: minmax(0, 1fr); }
+.omni-book-reader[data-layout="paginated"] .omni-book-reader-page-button { display: none; }
+.omni-book-reader[data-layout="scrolled"] .omni-book-reader-bottom-nav-button { visibility: hidden; pointer-events: none; }
+
+.omni-book-reader-page-jump-button {
+  padding-inline: 12px;
+  color: var(--pavel-botanical-forest, var(--text-normal));
+  font-variant-numeric: tabular-nums;
+  background: var(--pavel-botanical-sage-soft, var(--background-secondary));
+  border: 0;
+  border-radius: 999px;
+}
+
+.omni-book-reader-page-jump {
+  position: absolute;
+  z-index: 130;
+  right: 50%;
+  bottom: calc(62px + var(--omni-safe-bottom));
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) auto;
+  gap: 10px;
+  width: min(300px, calc(100% - 24px));
+  padding: 16px;
+  color: var(--pavel-botanical-forest, var(--text-normal));
+  background: color-mix(in srgb, var(--pavel-botanical-paper-raised, var(--background-primary)) 96%, transparent);
+  border: 1px solid var(--pavel-botanical-stone, var(--background-modifier-border));
+  border-radius: 20px;
+  box-shadow: var(--pavel-botanical-shadow-lg, var(--shadow-l));
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(50%, 10px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.omni-book-reader-page-jump.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(50%, 0);
+}
+
+.omni-book-reader-page-jump-title { grid-column: 1 / -1; font-family: var(--pavel-botanical-serif, var(--font-text)); font-weight: 700; }
+.omni-book-reader-page-jump input { min-height: 44px; min-width: 0; }
+.omni-book-reader-page-jump button { min-height: 44px; }
+
+.omni-book-reader-appearance-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.omni-book-reader-appearance-presets button {
+  min-height: 40px;
+  margin: 0;
+  color: var(--pavel-botanical-muted, var(--text-muted));
+  background: var(--pavel-botanical-clay-soft, var(--background-secondary));
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+
+.omni-book-reader-appearance-presets button.is-active {
+  color: var(--pavel-botanical-paper, var(--text-on-accent));
+  background: var(--pavel-botanical-forest, var(--interactive-accent));
+}
+
+.omni-book-reader-selection-primary { color: var(--pavel-botanical-paper, var(--text-on-accent)); background: var(--pavel-botanical-forest, var(--interactive-accent)); }
+
+.omni-book-reader-highlight-group + .omni-book-reader-highlight-group { margin-top: 14px; }
+.omni-book-reader-highlight-group-heading { position: sticky; z-index: 1; top: -8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; margin-bottom: 7px; padding: 6px 8px; color: var(--pavel-botanical-muted, var(--text-muted)); font-family: var(--pavel-botanical-serif, var(--font-text)); font-size: 12px; font-weight: 700; background: color-mix(in srgb, var(--pavel-botanical-clay-soft, var(--background-secondary)) 94%, transparent); border-radius: 10px; }
+.omni-book-reader-highlight-group-heading span:last-child { display: grid; min-width: 24px; height: 24px; place-items: center; color: var(--pavel-botanical-paper); font-family: var(--font-interface); background: var(--pavel-botanical-sage); border-radius: 999px; }
+
+.omni-book-reader-local-status { position: absolute; z-index: 140; bottom: calc(70px + var(--omni-safe-bottom)); left: 50%; padding: 8px 14px; color: var(--pavel-botanical-paper, var(--text-on-accent)); font-size: 12px; font-weight: 700; background: var(--pavel-botanical-forest, var(--interactive-accent)); border-radius: 999px; box-shadow: var(--pavel-botanical-shadow-md, var(--shadow-m)); opacity: 0; pointer-events: none; transform: translate(-50%, 8px); transition: opacity 180ms ease, transform 180ms ease; }
+.omni-book-reader-local-status.is-visible { opacity: 1; transform: translate(-50%, 0); }
+
+.omni-book-reader-tutorial { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.omni-book-reader-tutorial-step { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 10px; padding: 14px; background: var(--pavel-botanical-clay-soft, var(--background-secondary)); border: 1px solid var(--pavel-botanical-stone, var(--background-modifier-border)); border-radius: 16px; }
+.omni-book-reader-tutorial-step > span { display: grid; width: 38px; height: 38px; place-items: center; color: var(--pavel-botanical-paper, var(--text-on-accent)); background: var(--pavel-botanical-sage, var(--interactive-accent)); border-radius: 50%; }
+.omni-book-reader-tutorial-title { font-family: var(--pavel-botanical-serif, var(--font-text)); font-weight: 700; }
+.omni-book-reader-tutorial-detail { margin-top: 4px; color: var(--pavel-botanical-muted, var(--text-muted)); font-size: 12px; line-height: 1.45; }
+
+.omni-book-reader[data-density="compact"] .omni-book-reader-header { min-height: 48px; }
+.omni-book-reader[data-density="compact"] .omni-book-reader-sidebar-book { padding-block: 9px; }
+.omni-book-reader[data-density="compact"] .omni-book-reader-panel { padding-top: 10px; }
+
+/* Bookshelf modes and continue reading */
+.omni-book-reader-continue {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 16px;
+  width: calc(100% - 8px);
+  min-height: 136px;
+  margin: 0 4px 18px;
+  padding: 14px;
+  color: var(--pavel-botanical-forest, var(--text-normal));
+  text-align: left;
+  background: linear-gradient(125deg, var(--pavel-botanical-sage-soft, var(--background-secondary)), var(--pavel-botanical-paper-raised, var(--background-primary)));
+  border: 1px solid var(--pavel-botanical-stone, var(--background-modifier-border));
+  border-radius: 22px;
+  box-shadow: var(--pavel-botanical-shadow-sm, var(--shadow-s));
+}
+
+.omni-book-reader-continue-cover {
+  position: relative;
+  display: grid;
+  width: 78px;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  place-items: center;
+  color: white;
+  background: linear-gradient(150deg, var(--pavel-botanical-sage), var(--pavel-botanical-forest));
+  border-radius: 6px 12px 12px 6px;
+}
+
+.omni-book-reader-continue-cover img { position: absolute; inset: 0; width: 100%; height: 100%; padding: 3px; object-fit: contain; background: var(--pavel-botanical-clay-soft, var(--background-secondary)); opacity: 0; animation: omni-cover-in 220ms ease forwards; }
+.omni-book-reader-continue-body { display: flex; min-width: 0; flex-direction: column; justify-content: center; }
+.omni-book-reader-continue-kicker { color: var(--pavel-botanical-terracotta); font-size: 10px; font-weight: 800; letter-spacing: .14em; }
+.omni-book-reader-continue-title { margin-block: 5px; overflow: hidden; font-family: var(--pavel-botanical-serif); font-size: 18px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.omni-book-reader-continue-meta { color: var(--pavel-botanical-muted); font-size: 12px; }
+.omni-book-reader-continue-progress { height: 4px; margin-top: 12px; overflow: hidden; background: var(--pavel-botanical-stone); border-radius: 999px; }
+.omni-book-reader-continue-progress > div { height: 100%; background: var(--pavel-botanical-terracotta); }
+.omni-book-reader-continue-action { display: flex; align-items: center; gap: 5px; align-self: flex-end; margin-top: 8px; color: var(--pavel-botanical-terracotta); font-weight: 700; }
+
+.omni-book-reader-bookshelf-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 4px 12px; }
+.omni-book-reader-bookshelf-toolbar .omni-book-reader-bookshelf-filters { display: flex; flex: 1; margin: 0; }
+.omni-book-reader-bookshelf-toolbar .omni-book-reader-bookshelf-filters button { min-width: 64px; min-height: 44px; padding-inline: 12px; }
+.omni-book-reader-bookshelf-controls { display: flex; align-items: center; gap: 4px; }
+.omni-book-reader-bookshelf-controls select { min-height: 44px; }
+.omni-book-reader-bookshelf-controls button { display: grid; width: 44px; min-width: 44px; height: 44px; padding: 0; place-items: center; background: transparent; border: 1px solid var(--pavel-botanical-stone); border-radius: 999px; }
+.omni-book-reader-bookshelf-controls button.is-active { color: var(--pavel-botanical-paper); background: var(--pavel-botanical-forest); }
+
+.omni-book-reader-cover-fallback { font-family: var(--pavel-botanical-serif); font-size: 24px; font-style: italic; font-weight: 700; }
+.omni-book-reader-bookshelf-cover { aspect-ratio: 2 / 3; height: auto; background-image: linear-gradient(150deg, var(--pavel-botanical-sage), var(--pavel-botanical-forest)); }
+.omni-book-reader-bookshelf-cover::after { position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 13%) 48%, transparent 65%); content: ""; transform: translateX(-100%); animation: omni-cover-skeleton 1.6s ease-in-out infinite; }
+.omni-book-reader-bookshelf-cover.has-image::after { display: none; }
+.omni-book-reader-bookshelf-cover.is-fallback::after { display: none; }
+.omni-book-reader-bookshelf-cover img { padding: 3px; object-fit: contain; background: var(--pavel-botanical-clay-soft, var(--background-secondary)); opacity: 0; animation: omni-cover-in 220ms ease forwards; }
+
+.omni-book-reader-bookshelf[data-display-mode="list"] .omni-book-reader-bookshelf-book { grid-template-columns: 72px minmax(0, 1fr); height: auto; max-height: none; }
+.omni-book-reader-bookshelf[data-display-mode="list"] .omni-book-reader-bookshelf-cover { width: 72px; height: 108px; aspect-ratio: auto; }
+
+.omni-book-reader-bookshelf[data-display-mode="grid"] .omni-book-reader-bookshelf-list,
+.omni-book-reader-bookshelf[data-display-mode="covers"] .omni-book-reader-bookshelf-list { grid-template-columns: repeat(auto-fill, minmax(140px, 190px)); justify-content: start; gap: 16px; }
+.omni-book-reader-bookshelf[data-display-mode="grid"] .omni-book-reader-bookshelf-book,
+.omni-book-reader-bookshelf[data-display-mode="covers"] .omni-book-reader-bookshelf-book { grid-template-columns: 1fr; align-self: start; height: auto; min-height: 0; max-height: none; }
+.omni-book-reader-bookshelf.is-large-library[data-display-mode="grid"] .omni-book-reader-bookshelf-book,
+.omni-book-reader-bookshelf.is-large-library[data-display-mode="covers"] .omni-book-reader-bookshelf-book { content-visibility: auto; contain-intrinsic-size: 180px 320px; }
+.omni-book-reader-bookshelf.is-large-library[data-display-mode="list"] .omni-book-reader-bookshelf-book { content-visibility: auto; contain-intrinsic-size: 104px; }
+.omni-book-reader-bookshelf[data-display-mode="grid"] .omni-book-reader-bookshelf-cover,
+.omni-book-reader-bookshelf[data-display-mode="covers"] .omni-book-reader-bookshelf-cover { width: 100%; height: auto; min-height: 210px; max-height: none; aspect-ratio: 2 / 3; flex: none; }
+.omni-book-reader-bookshelf[data-display-mode="grid"] .omni-book-reader-bookshelf-book-body { padding: 3px 2px; }
+.omni-book-reader-bookshelf[data-display-mode="covers"] .omni-book-reader-bookshelf-book { position: relative; padding: 8px; overflow: hidden; }
+.omni-book-reader-bookshelf[data-display-mode="covers"] .omni-book-reader-bookshelf-book-body { position: static; padding: 7px 3px 2px; color: var(--pavel-botanical-forest, var(--text-normal)); background: transparent; }
+.omni-book-reader-bookshelf[data-display-mode="covers"] :is(.omni-book-reader-bookshelf-book-path, .omni-book-reader-bookshelf-book-meta, .omni-book-reader-bookshelf-progress) { display: none; }
+
+@keyframes omni-cover-in { to { opacity: 1; } }
+@keyframes omni-cover-skeleton { 60%, 100% { transform: translateX(100%); } }
+
+@media (max-width: 720px) {
+  .omni-book-reader-footer { grid-template-columns: 44px minmax(70px, 1fr) 44px; min-height: calc(54px + var(--omni-safe-bottom)); padding-bottom: calc(5px + var(--omni-safe-bottom)); }
+  .omni-book-reader-footer :is(.omni-book-reader-progress, .omni-book-reader-progress-text, .omni-book-reader-location, .omni-book-reader-reading-stats) { display: none; }
+  .omni-book-reader-page-jump-button { width: 100%; }
+  .omni-book-reader-quick-settings { position: fixed; top: auto; right: 8px; bottom: calc(8px + var(--omni-safe-bottom)); left: 8px; width: auto; max-height: min(78vh, 680px); border-radius: 24px; transform-origin: bottom center; }
+  .omni-book-reader-bookshelf-toolbar { align-items: stretch; flex-direction: column; }
+  .omni-book-reader-bookshelf-toolbar .omni-book-reader-bookshelf-filters { display: grid; grid-template-columns: repeat(4, 1fr); overflow-x: auto; }
+  .omni-book-reader-bookshelf-controls { justify-content: flex-end; }
+  .omni-book-reader-bookshelf-controls select { flex: 1; }
+  .omni-book-reader-bookshelf[data-display-mode="grid"] .omni-book-reader-bookshelf-list,
+  .omni-book-reader-bookshelf[data-display-mode="covers"] .omni-book-reader-bookshelf-list { grid-template-columns: repeat(2, minmax(120px, 1fr)); justify-content: stretch; gap: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .omni-book-reader-bookshelf-cover::after { animation: none; }
+  .omni-book-reader-header, .omni-book-reader-footer, .omni-book-reader-page-button { transition: none; }
 }
 
 .omni-book-reader-book-details-row span:first-child {

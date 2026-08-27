@@ -19,6 +19,7 @@ class RecentReadingModal extends Modal {
   }
 
   onOpen(): void {
+    this.modalEl.addClass("omni-book-reader-recent-modal");
     const language = this.store.settings.interfaceLanguage;
     const t = (zh: string, en: string): string => uiText(language, zh, en);
     this.titleEl.setText(t("最近阅读", "Recent reading"));
@@ -212,6 +213,15 @@ export default class OmniBookReaderPlugin extends Plugin {
       },
     }, "Omni Book Reader：显示阅读统计", "Omni Book Reader: Show reading statistics");
 
+    this.addUiCommand({
+      id: "show-reader-tutorial",
+      checkCallback: (checking) => {
+        const view = this.getActiveReader();
+        if (!checking) view?.openTutorial();
+        return Boolean(view);
+      },
+    }, "Omni Book Reader：重新打开阅读引导", "Omni Book Reader: Reopen reader tutorial");
+
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
       if (file instanceof TFile && file.extension.toLowerCase() === "epub") {
         this.store.renameBook(oldPath, file.path);
@@ -250,12 +260,20 @@ export default class OmniBookReaderPlugin extends Plugin {
     return this.store.settings;
   }
 
+  getCoverCacheDirectory(): string {
+    return normalizePath(`${this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`}/.cover-cache`);
+  }
+
   updateReaderSettings(patch: Partial<ReaderSettings>): void {
     const languageChanged = patch.interfaceLanguage !== undefined
       && patch.interfaceLanguage !== this.store.settings.interfaceLanguage;
     this.store.updateSettings(patch);
-    if (languageChanged) {
+    const bookshelfChanged = languageChanged || patch.bookshelfDisplayMode !== undefined
+      || patch.bookshelfFilter !== undefined || patch.bookshelfSort !== undefined;
+    if (bookshelfChanged) {
       this.refreshBookshelves();
+    }
+    if (languageChanged) {
       this.refreshRegisteredLabels();
     }
     for (const leaf of this.app.workspace.getLeavesOfType(OMNI_BOOK_READER_VIEW_TYPE)) {
