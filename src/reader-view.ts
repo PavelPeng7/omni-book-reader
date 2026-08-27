@@ -36,7 +36,9 @@ import {
   isPageTurnTap,
   isTextSelectionGesture,
   mobilePageTurnDirection,
+  selectionEdgePageTurnDirection,
   shouldSuppressTouchPageTurn,
+  shouldBlockPageTurnForSelection,
   swipePageTurnDirection,
   tapPageTurnDirection,
 } from "./mobile-input";
@@ -492,6 +494,8 @@ export class OmniBookReaderView extends FileView {
   private layoutFrame: number | null = null;
   private wheelDelta = 0;
   private lastWheelTurnAt = 0;
+  private selectionPageTurnGuardUntil = 0;
+  private selectionPageTurnRunning = false;
   private bookTitle = "Omni Book Reader";
   private bookAuthor = "";
   private fixedLayout = false;
@@ -1380,10 +1384,15 @@ export class OmniBookReaderView extends FileView {
     this.attachedDocuments.add(document);
     let selectionFrame: number | null = null;
     let selectionRetry: number | null = null;
+    let selectionEdgeTurnTimer: number | null = null;
+    let selectionEdgeTurnDirection: "previous" | "next" | null = null;
     let touchStartPoint: { x: number; y: number; time: number; target: Element | null } | null = null;
     let selectingText = false;
     let touchStartedWithSelection = false;
     let suppressClickUntil = 0;
+    const markSelectionInteraction = (duration = 900): void => {
+      this.selectionPageTurnGuardUntil = Math.max(this.selectionPageTurnGuardUntil, Date.now() + duration);
+    };
     const capture = (): void => {
       if (selectionFrame !== null) window.cancelAnimationFrame(selectionFrame);
       selectionFrame = window.requestAnimationFrame(() => {
@@ -1391,14 +1400,47 @@ export class OmniBookReaderView extends FileView {
         this.captureSelection(document, sectionIndex);
       });
     };
+    const cancelSelectionEdgeTurn = (): void => {
+      if (selectionEdgeTurnTimer !== null) window.clearTimeout(selectionEdgeTurnTimer);
+      selectionEdgeTurnTimer = null;
+      selectionEdgeTurnDirection = null;
+    };
+    const scheduleSelectionEdgeTurn = (point: { clientX: number }): void => {
+      const settings = this.plugin.getReaderSettings();
+      const width = document.documentElement.clientWidth || document.body?.clientWidth || 0;
+      const direction = !this.fixedLayout && settings.layout === "paginated"
+        ? selectionEdgePageTurnDirection(point.clientX, width)
+        : null;
+      if (!direction) {
+        cancelSelectionEdgeTurn();
+        return;
+      }
+      if (selectionEdgeTurnDirection === direction && selectionEdgeTurnTimer !== null) return;
+      cancelSelectionEdgeTurn();
+      selectionEdgeTurnDirection = direction;
+      selectionEdgeTurnTimer = window.setTimeout(() => {
+        selectionEdgeTurnTimer = null;
+        selectionEdgeTurnDirection = null;
+        void this.turnPageWhileSelecting(direction);
+      }, 500);
+    };
     const pointerUp = (event: PointerEvent): void => {
+      cancelSelectionEdgeTurn();
       this.noteReadingActivity();
       if (event.pointerType !== "touch") capture();
     };
+    const pointerMove = (event: PointerEvent): void => {
+      if (event.pointerType === "touch" || event.buttons !== 1 || !this.hasNonCollapsedTextSelection(document)) {
+        if (event.pointerType !== "touch") cancelSelectionEdgeTurn();
+        return;
+      }
+      markSelectionInteraction();
+      scheduleSelectionEdgeTurn(event);
+    };
     const touchStart = (event: TouchEvent): void => {
       selectingText = false;
-      const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
-      touchStartedWithSelection = Boolean(this.pendingSelection || (selection && !selection.isCollapsed));
+      touchStartedWithSelection = this.shouldBlockPageTurnForSelection(document);
+      if (touchStartedWithSelection) markSelectionInteraction();
       const touch = event.changedTouches.item(0);
       touchStartPoint = !touchStartedWithSelection && event.touches.length === 1 && touch
         && this.canUseDocumentPageTurn(event.target as Element | null, document) ? {
@@ -1409,18 +1451,28 @@ export class OmniBookReaderView extends FileView {
       } : null;
     };
     const touchMove = (event: TouchEvent): void => {
-      if (!touchStartPoint || event.touches.length !== 1) return;
+      if (event.touches.length !== 1) {
+        cancelSelectionEdgeTurn();
+        return;
+      }
       const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
       if (selection && !selection.isCollapsed) {
         selectingText = true;
         touchStartPoint = null;
+        markSelectionInteraction();
+        const touch = event.touches.item(0);
+        if (touch) scheduleSelectionEdgeTurn(touch);
         return;
       }
+      cancelSelectionEdgeTurn();
+      if (!touchStartPoint) return;
+      if (Date.now() <= this.selectionPageTurnGuardUntil) return;
       if (event.cancelable) event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
     };
     const touchEnd = (event: TouchEvent): void => {
+      cancelSelectionEdgeTurn();
       this.noteReadingActivity();
       const start = touchStartPoint;
       const touch = event.changedTouches.item(0);
@@ -1435,6 +1487,7 @@ export class OmniBookReaderView extends FileView {
       selectingText = false;
       if (!start || !touch) {
         if (hasTextSelection) {
+          markSelectionInteraction();
           suppressClickUntil = event.timeStamp + 700;
           event.stopPropagation();
           event.stopImmediatePropagation();
@@ -1448,6 +1501,7 @@ export class OmniBookReaderView extends FileView {
         time: event.timeStamp,
       };
       if (shouldSuppressTouchPageTurn(start, end, hasTextSelection)) {
+        markSelectionInteraction();
         suppressClickUntil = event.timeStamp + 700;
         capture();
         if (selectionRetry !== null) window.clearTimeout(selectionRetry);
@@ -1482,9 +1536,20 @@ export class OmniBookReaderView extends FileView {
       }, 140);
     };
     const touchCancel = (): void => {
+      cancelSelectionEdgeTurn();
       touchStartPoint = null;
       touchStartedWithSelection = false;
       selectingText = false;
+    };
+    const selectStart = (): void => {
+      selectingText = true;
+      touchStartPoint = null;
+      markSelectionInteraction(850);
+      capture();
+    };
+    const selectionChange = (): void => {
+      if (this.hasActiveReaderSelection(document)) markSelectionInteraction(850);
+      capture();
     };
     const keyDown = (event: KeyboardEvent): void => {
       this.noteReadingActivity();
@@ -1521,12 +1586,14 @@ export class OmniBookReaderView extends FileView {
       event.stopImmediatePropagation();
     };
     document.addEventListener("pointerup", pointerUp);
+    document.addEventListener("pointermove", pointerMove);
     document.addEventListener("mouseup", capture);
     document.addEventListener("touchstart", touchStart, { capture: true, passive: true });
     document.addEventListener("touchmove", touchMove, { capture: true, passive: false });
     document.addEventListener("touchend", touchEnd, { capture: true, passive: false });
     document.addEventListener("touchcancel", touchCancel, true);
-    document.addEventListener("selectionchange", capture);
+    document.addEventListener("selectstart", selectStart, true);
+    document.addEventListener("selectionchange", selectionChange);
     document.addEventListener("keydown", keyDown, true);
     document.addEventListener("keyup", keyUp);
     document.addEventListener("wheel", wheel, { passive: false });
@@ -1535,13 +1602,16 @@ export class OmniBookReaderView extends FileView {
       this.attachedDocuments.delete(document);
       if (selectionFrame !== null) window.cancelAnimationFrame(selectionFrame);
       if (selectionRetry !== null) window.clearTimeout(selectionRetry);
+      cancelSelectionEdgeTurn();
       document.removeEventListener("pointerup", pointerUp);
+      document.removeEventListener("pointermove", pointerMove);
       document.removeEventListener("mouseup", capture);
       document.removeEventListener("touchstart", touchStart, true);
       document.removeEventListener("touchmove", touchMove, true);
       document.removeEventListener("touchend", touchEnd, true);
       document.removeEventListener("touchcancel", touchCancel, true);
-      document.removeEventListener("selectionchange", capture);
+      document.removeEventListener("selectstart", selectStart, true);
+      document.removeEventListener("selectionchange", selectionChange);
       document.removeEventListener("keydown", keyDown, true);
       document.removeEventListener("keyup", keyUp);
       document.removeEventListener("wheel", wheel);
@@ -1555,8 +1625,29 @@ export class OmniBookReaderView extends FileView {
     if (target?.closest?.(
       "a, button, input, textarea, select, option, label, summary, details, img, svg, video, audio, iframe, [contenteditable='true'], [role='button'], [role='link']",
     )) return false;
-    const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
-    return !this.pendingSelection && !(selection && !selection.isCollapsed);
+    return !this.shouldBlockPageTurnForSelection(document);
+  }
+
+  private hasNonCollapsedTextSelection(document: Document | null | undefined): boolean {
+    const selection = document?.defaultView?.getSelection?.() ?? document?.getSelection?.();
+    return Boolean(selection && !selection.isCollapsed && selection.rangeCount > 0 && selection.toString().trim());
+  }
+
+  private hasActiveReaderSelection(preferredDocument?: Document | null): boolean {
+    if (this.hasNonCollapsedTextSelection(preferredDocument)) return true;
+    for (const content of this.reader?.renderer?.getContents?.() ?? []) {
+      if (content.doc !== preferredDocument && this.hasNonCollapsedTextSelection(content.doc)) return true;
+    }
+    return false;
+  }
+
+  private shouldBlockPageTurnForSelection(preferredDocument?: Document | null): boolean {
+    return shouldBlockPageTurnForSelection(
+      this.hasActiveReaderSelection(preferredDocument),
+      Boolean(this.pendingSelection),
+      Date.now(),
+      this.selectionPageTurnGuardUntil,
+    );
   }
 
   private openHighlightAtPoint(document: Document, clientX: number, clientY: number): boolean {
@@ -1612,6 +1703,37 @@ export class OmniBookReaderView extends FileView {
       }
     };
     void run();
+  }
+
+  private async turnPageWhileSelecting(direction: "previous" | "next"): Promise<void> {
+    const reader = this.reader;
+    const pending = this.pendingSelection;
+    if (!reader || !pending || this.selectionPageTurnRunning || this.pageTurnRunning) return;
+    this.selectionPageTurnRunning = true;
+    this.selectionPageTurnGuardUntil = Math.max(this.selectionPageTurnGuardUntil, Date.now() + 1400);
+    try {
+      await (direction === "next" ? reader.goRight() : reader.goLeft());
+      if (reader !== this.reader || pending !== this.pendingSelection) return;
+      const content = reader.renderer.getContents?.()[0];
+      if (!content || content.index !== pending.sectionIndex) {
+        await reader.select(pending.cfi);
+        const restored = reader.renderer.getContents?.()[0];
+        if (restored?.index === pending.sectionIndex) this.captureSelection(restored.doc, restored.index);
+        this.showLocalStatus(this.text(
+          "已到章节边界，请先保存当前高亮，再继续选择下一章",
+          "Chapter boundary reached. Save this highlight before selecting the next chapter.",
+        ));
+        return;
+      }
+      const selection = content.doc.defaultView?.getSelection?.() ?? content.doc.getSelection?.();
+      if (!selection || selection.isCollapsed || selection.rangeCount === 0) await reader.select(pending.cfi);
+      this.captureSelection(content.doc, content.index);
+    } catch (error) {
+      console.warn("[Omni Book Reader] Could not turn the page while selecting", error);
+      this.showLocalStatus(this.text("无法继续跨页选择", "Could not continue the selection across pages"));
+    } finally {
+      this.selectionPageTurnRunning = false;
+    }
   }
 
   async exportCurrentChapter(): Promise<void> {
@@ -1811,7 +1933,18 @@ export class OmniBookReaderView extends FileView {
     if (Platform.isMobile || !this.selectionToolbarEl || !this.rootEl) return;
     const frame = document.defaultView?.frameElement;
     if (!(frame instanceof HTMLElement)) return;
-    const selectionRect = range.getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = document.documentElement.clientHeight;
+    const visibleRects = Array.from(range.getClientRects()).filter((rect) => (
+      rect.right > 0 && rect.left < viewportWidth && rect.bottom > 0 && rect.top < viewportHeight
+    ));
+    const selectionRect = visibleRects.length ? {
+      left: Math.max(0, Math.min(...visibleRects.map((rect) => rect.left))),
+      right: Math.min(viewportWidth, Math.max(...visibleRects.map((rect) => rect.right))),
+      top: Math.max(0, Math.min(...visibleRects.map((rect) => rect.top))),
+      bottom: Math.min(viewportHeight, Math.max(...visibleRects.map((rect) => rect.bottom))),
+    } : range.getBoundingClientRect();
+    const selectionWidth = selectionRect.right - selectionRect.left;
     const frameRect = frame.getBoundingClientRect();
     const rootRect = this.rootEl.getBoundingClientRect();
     window.requestAnimationFrame(() => {
@@ -1819,7 +1952,7 @@ export class OmniBookReaderView extends FileView {
       if (!toolbar?.isConnected) return;
       const width = toolbar.offsetWidth;
       const height = toolbar.offsetHeight;
-      const center = frameRect.left - rootRect.left + selectionRect.left + selectionRect.width / 2;
+      const center = frameRect.left - rootRect.left + selectionRect.left + selectionWidth / 2;
       const left = Math.min(rootRect.width - width / 2 - 10, Math.max(width / 2 + 10, center));
       const above = frameRect.top - rootRect.top + selectionRect.top - height - 12;
       const top = above > 8 ? above : frameRect.top - rootRect.top + selectionRect.bottom + 12;
@@ -2415,6 +2548,7 @@ export class OmniBookReaderView extends FileView {
       return;
     }
     if (!this.reader || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (this.shouldBlockPageTurnForSelection()) return;
     if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
       event.preventDefault();
       this.queuePageTurn("previous");
@@ -2434,6 +2568,7 @@ export class OmniBookReaderView extends FileView {
 
   private handleWheel(event: WheelEvent): void {
     if (!this.reader || this.plugin.getReaderSettings().layout !== "paginated") return;
+    if (this.shouldBlockPageTurnForSelection()) return;
     if (event.ctrlKey || event.metaKey || isEditableTarget(event.target)) return;
     const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
     if (!delta) return;
@@ -2454,6 +2589,7 @@ export class OmniBookReaderView extends FileView {
 
   private handleMobileHardwareKey(event: KeyboardEvent): void {
     if (!Platform.isMobile || !this.reader || event.repeat || isEditableTarget(event.target)) return;
+    if (this.shouldBlockPageTurnForSelection()) return;
     if (!this.focusMode && this.app.workspace.getActiveViewOfType(OmniBookReaderView) !== this) return;
     const direction = mobilePageTurnDirection(event);
     if (!direction) return;
@@ -2522,6 +2658,7 @@ export class OmniBookReaderView extends FileView {
     this.chromeTimer = null;
     if (this.localStatusTimer !== null) window.clearTimeout(this.localStatusTimer);
     this.localStatusTimer = null;
+    this.selectionPageTurnGuardUntil = 0;
     if (invalidateLoad) this.loadGeneration += 1;
     this.saveCurrentPosition();
     this.tickReadingStats();
