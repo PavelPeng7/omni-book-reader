@@ -3,6 +3,7 @@ import {
   isPageTurnTap,
   isTextSelectionGesture,
   mobilePageTurnDirection,
+  shouldIsolatePaginatorPointer,
   shouldSuppressTouchPageTurn,
   swipePageTurnDirection,
   tapPageTurnDirection,
@@ -64,5 +65,11 @@ describe("mobilePageTurnDirection", () => {
     expect(isTextSelectionGesture(false, true, false)).toBe(true);
     expect(isTextSelectionGesture(false, false, true)).toBe(true);
     expect(isTextSelectionGesture(false, false, false)).toBe(false);
+  });
+
+  it("isolates touch pointers from Foliate's automatic selection paging", () => {
+    expect(shouldIsolatePaginatorPointer("touch")).toBe(true);
+    expect(shouldIsolatePaginatorPointer("mouse")).toBe(false);
+    expect(shouldIsolatePaginatorPointer("pen")).toBe(false);
   });
 });

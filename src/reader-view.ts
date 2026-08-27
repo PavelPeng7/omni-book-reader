@@ -34,6 +34,7 @@ import {
   isPageTurnTap,
   isTextSelectionGesture,
   mobilePageTurnDirection,
+  shouldIsolatePaginatorPointer,
   shouldSuppressTouchPageTurn,
   swipePageTurnDirection,
   tapPageTurnDirection,
@@ -1193,6 +1194,7 @@ export class OmniBookReaderView extends FileView {
     let selectingText = false;
     let touchStartedWithSelection = false;
     let suppressClickUntil = 0;
+    let suppressPaginatorSelectionUntil = 0;
     const capture = (): void => {
       if (selectionFrame !== null) window.cancelAnimationFrame(selectionFrame);
       selectionFrame = window.requestAnimationFrame(() => {
@@ -1200,12 +1202,26 @@ export class OmniBookReaderView extends FileView {
         this.captureSelection(document, sectionIndex);
       });
     };
+    const pointerDown = (event: PointerEvent): void => {
+      this.noteReadingActivity();
+      if (!shouldIsolatePaginatorPointer(event.pointerType)) return;
+      // Foliate auto-pages every 700ms while a pointer selection crosses the
+      // visible range. Native touch handles already manage that selection.
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    };
     const pointerUp = (event: PointerEvent): void => {
       this.noteReadingActivity();
-      if (event.pointerType !== "touch") capture();
+      if (shouldIsolatePaginatorPointer(event.pointerType)) {
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
+      capture();
     };
     const touchStart = (event: TouchEvent): void => {
       selectingText = false;
+      suppressPaginatorSelectionUntil = Number.POSITIVE_INFINITY;
       const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
       touchStartedWithSelection = Boolean(this.pendingSelection || (selection && !selection.isCollapsed));
       const touch = event.changedTouches.item(0);
@@ -1216,13 +1232,28 @@ export class OmniBookReaderView extends FileView {
         time: event.timeStamp,
         target: event.target as Element | null,
       } : null;
+      if (touchStartedWithSelection) {
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      }
     };
     const touchMove = (event: TouchEvent): void => {
-      if (!touchStartPoint || event.touches.length !== 1) return;
+      if (event.touches.length !== 1) return;
+      if (touchStartedWithSelection) {
+        selectingText = true;
+        // Keep the native selection default, but do not let Foliate interpret
+        // a briefly collapsed selection as a horizontal paginator drag.
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
+      if (!touchStartPoint) return;
       const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
       if (selection && !selection.isCollapsed) {
         selectingText = true;
         touchStartPoint = null;
+        event.stopPropagation();
+        event.stopImmediatePropagation();
         return;
       }
       if (event.cancelable) event.preventDefault();
@@ -1231,6 +1262,7 @@ export class OmniBookReaderView extends FileView {
     };
     const touchEnd = (event: TouchEvent): void => {
       this.noteReadingActivity();
+      suppressPaginatorSelectionUntil = event.timeStamp + 700;
       const start = touchStartPoint;
       const touch = event.changedTouches.item(0);
       touchStartPoint = null;
@@ -1290,10 +1322,11 @@ export class OmniBookReaderView extends FileView {
         capture();
       }, 140);
     };
-    const touchCancel = (): void => {
+    const touchCancel = (event: TouchEvent): void => {
       touchStartPoint = null;
       touchStartedWithSelection = false;
       selectingText = false;
+      suppressPaginatorSelectionUntil = event.timeStamp + 700;
     };
     const keyDown = (event: KeyboardEvent): void => {
       this.noteReadingActivity();
@@ -1303,6 +1336,14 @@ export class OmniBookReaderView extends FileView {
     const keyUp = (): void => {
       this.noteReadingActivity();
       capture();
+    };
+    const selectionChange = (event: Event): void => {
+      capture();
+      if (event.timeStamp > suppressPaginatorSelectionUntil) return;
+      // Foliate's bubbling listener repeatedly calls prev()/next() when a
+      // touch selection crosses its last visible range.
+      event.stopPropagation();
+      event.stopImmediatePropagation();
     };
     const wheel = (event: WheelEvent): void => this.handleWheel(event);
     const click = (event: MouseEvent): void => {
@@ -1329,13 +1370,14 @@ export class OmniBookReaderView extends FileView {
       event.stopPropagation();
       event.stopImmediatePropagation();
     };
-    document.addEventListener("pointerup", pointerUp);
+    document.addEventListener("pointerdown", pointerDown, true);
+    document.addEventListener("pointerup", pointerUp, true);
     document.addEventListener("mouseup", capture);
     document.addEventListener("touchstart", touchStart, { capture: true, passive: true });
     document.addEventListener("touchmove", touchMove, { capture: true, passive: false });
     document.addEventListener("touchend", touchEnd, { capture: true, passive: false });
     document.addEventListener("touchcancel", touchCancel, true);
-    document.addEventListener("selectionchange", capture);
+    document.addEventListener("selectionchange", selectionChange, true);
     document.addEventListener("keydown", keyDown, true);
     document.addEventListener("keyup", keyUp);
     document.addEventListener("wheel", wheel, { passive: false });
@@ -1344,13 +1386,14 @@ export class OmniBookReaderView extends FileView {
       this.attachedDocuments.delete(document);
       if (selectionFrame !== null) window.cancelAnimationFrame(selectionFrame);
       if (selectionRetry !== null) window.clearTimeout(selectionRetry);
-      document.removeEventListener("pointerup", pointerUp);
+      document.removeEventListener("pointerdown", pointerDown, true);
+      document.removeEventListener("pointerup", pointerUp, true);
       document.removeEventListener("mouseup", capture);
       document.removeEventListener("touchstart", touchStart, true);
       document.removeEventListener("touchmove", touchMove, true);
       document.removeEventListener("touchend", touchEnd, true);
       document.removeEventListener("touchcancel", touchCancel, true);
-      document.removeEventListener("selectionchange", capture);
+      document.removeEventListener("selectionchange", selectionChange, true);
       document.removeEventListener("keydown", keyDown, true);
       document.removeEventListener("keyup", keyUp);
       document.removeEventListener("wheel", wheel);

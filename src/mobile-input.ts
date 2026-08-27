@@ -71,3 +71,7 @@ export function isTextSelectionGesture(
 ): boolean {
   return startedWithSelection || selectingText || hasCurrentSelection;
 }
+
+export function shouldIsolatePaginatorPointer(pointerType: string): boolean {
+  return pointerType === "touch";
+}
