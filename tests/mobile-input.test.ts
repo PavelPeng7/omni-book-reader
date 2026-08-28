@@ -3,6 +3,7 @@ import {
   isPageTurnTap,
   isTextSelectionGesture,
   mobilePageTurnDirection,
+  pageTurnCrossesSection,
   shouldSuppressTouchPageTurn,
   shouldBlockPageTurnForSelection,
   selectionEdgePageTurnDirection,
@@ -81,5 +82,25 @@ describe("mobilePageTurnDirection", () => {
     expect(selectionEdgePageTurnDirection(200, 400)).toBeNull();
     expect(selectionEdgePageTurnDirection(-1, 400)).toBeNull();
     expect(selectionEdgePageTurnDirection(20, 80)).toBeNull();
+  });
+
+  it("detects section boundaries before a selection edge turn", () => {
+    expect(pageTurnCrossesSection("previous", "ltr", 1, 8)).toBe(true);
+    expect(pageTurnCrossesSection("next", "ltr", 6, 8)).toBe(true);
+    expect(pageTurnCrossesSection("next", "ltr", 5, 8)).toBe(false);
+    expect(pageTurnCrossesSection("previous", "ltr", 2, 8)).toBe(false);
+  });
+
+  it("reverses selection boundary directions for RTL books", () => {
+    expect(pageTurnCrossesSection("next", "rtl", 1, 8)).toBe(true);
+    expect(pageTurnCrossesSection("previous", "rtl", 6, 8)).toBe(true);
+    expect(pageTurnCrossesSection("next", "rtl", 2, 8)).toBe(false);
+    expect(pageTurnCrossesSection("previous", "rtl", 5, 8)).toBe(false);
+  });
+
+  it("does not infer a boundary without valid paginator state", () => {
+    expect(pageTurnCrossesSection("next", "ltr", undefined, 8)).toBe(false);
+    expect(pageTurnCrossesSection("next", "ltr", 6, undefined)).toBe(false);
+    expect(pageTurnCrossesSection("next", "ltr", 1, 2)).toBe(false);
   });
 });

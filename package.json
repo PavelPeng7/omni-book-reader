@@ -9,6 +9,8 @@
     "check": "tsc --noEmit",
     "lint": "eslint src package.json --max-warnings 0",
     "test": "vitest run",
+    "verify:quick": "node scripts/verify-quick.mjs",
+    "verify:full": "node scripts/verify-full.mjs",
     "package": "node scripts/package-release.mjs",
     "validate:release": "node scripts/validate-release.mjs",
     "release:check": "npm run lint && npm run check && npm test && npm run build && npm run validate:release && npm run package"

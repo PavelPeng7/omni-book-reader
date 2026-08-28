@@ -36,6 +36,7 @@ import {
   isPageTurnTap,
   isTextSelectionGesture,
   mobilePageTurnDirection,
+  pageTurnCrossesSection,
   selectionEdgePageTurnDirection,
   shouldSuppressTouchPageTurn,
   shouldBlockPageTurnForSelection,
@@ -1712,6 +1713,18 @@ export class OmniBookReaderView extends FileView {
     this.selectionPageTurnRunning = true;
     this.selectionPageTurnGuardUntil = Math.max(this.selectionPageTurnGuardUntil, Date.now() + 1400);
     try {
+      if (pageTurnCrossesSection(
+        direction,
+        reader.book.dir ?? "ltr",
+        reader.renderer.page,
+        reader.renderer.pages,
+      )) {
+        this.showLocalStatus(this.text(
+          "已到章节边界，请先保存当前高亮，再继续选择下一章",
+          "Chapter boundary reached. Save this highlight before selecting the next chapter.",
+        ));
+        return;
+      }
       await (direction === "next" ? reader.goRight() : reader.goLeft());
       if (reader !== this.reader || pending !== this.pendingSelection) return;
       const content = reader.renderer.getContents?.()[0];

@@ -1,5 +1,19 @@
 # Project UI Design Skill: Botanical / Organic Serif
 
+## Project harness
+
+Use the repository documents as the source of truth for planned work:
+
+1. Read `docs/product-specs/index.md` for product scope and acceptance criteria.
+2. Read `ARCHITECTURE.md` before changing module boundaries, persistence, EPUB loading, exports, or release artifacts.
+3. Read `docs/design-docs/systems/reader-selection-navigation.md` before changing selection, touch/pointer handling, page turns, Foliate navigation, or LTR/RTL behavior.
+4. Record multi-step implementation work in `docs/exec-plans/active/` and keep `progress.md` current while the work is active.
+5. Put durable implementation decisions in `docs/design-docs/`; do not leave important rationale only in chat, commits, or code comments.
+6. Run `npm run verify:quick` during implementation and `npm run verify:full` before declaring a change complete.
+7. Move finished execution plans to `docs/exec-plans/completed/` and record known compromises in `docs/exec-plans/tech-debt.md`.
+
+Generated facts should be produced from code whenever practical. If generated documentation is added later, place it under `docs/generated/` and document the generator command beside it.
+
 Apply this skill whenever adding, removing, redesigning, or materially changing any user-facing interface, including settings, reader controls, panels, dialogs, empty states, and responsive layouts. The outcome must feel like one coherent Botanical / Organic Serif product, not a collection of generic controls.
 
 ## 1. Inspect before designing

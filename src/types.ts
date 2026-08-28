@@ -134,6 +134,8 @@ export interface FoliateBook {
 }
 
 export interface FoliateRenderer extends HTMLElement {
+  page?: number;
+  pages?: number;
   setStyles?: (css: string) => void;
   getContents?: () => Array<{ doc: Document; index: number; overlayer?: FoliateOverlayer }>;
 }

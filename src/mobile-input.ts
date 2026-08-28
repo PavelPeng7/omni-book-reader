@@ -85,6 +85,20 @@ export function selectionEdgePageTurnDirection(
   return null;
 }
 
+export function pageTurnCrossesSection(
+  direction: PageTurnDirection,
+  readingDirection: "ltr" | "rtl",
+  currentPage: number | undefined,
+  totalPages: number | undefined,
+): boolean {
+  if (typeof currentPage !== "number" || !Number.isFinite(currentPage)
+    || typeof totalPages !== "number" || !Number.isFinite(totalPages) || totalPages < 3) return false;
+  const movesForward = direction === (readingDirection === "rtl" ? "previous" : "next");
+  return movesForward
+    ? currentPage >= totalPages - 2
+    : currentPage <= 1;
+}
+
 export function shouldBlockPageTurnForSelection(
   hasActiveSelection: boolean,
   hasPendingSelection: boolean,

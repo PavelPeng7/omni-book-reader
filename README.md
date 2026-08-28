@@ -29,10 +29,16 @@ Generated Markdown is written only between `omni-book-reader` managed-block comm
 
 ```powershell
 npm install
-npm run check
-npm test
-npm run build
+npm run verify:quick
 ```
+
+`verify:quick` runs lint, TypeScript checks, and the unit test suite. Before completing a change, run the full gate:
+
+```powershell
+npm run verify:full
+```
+
+The full gate also creates the production bundle and validates the release metadata and assets. Project specifications, architecture, design decisions, and execution-plan conventions are indexed in [`AGENTS.md`](AGENTS.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), and [`docs/product-specs/index.md`](docs/product-specs/index.md).
 
 The production artifacts loaded by Obsidian are `main.js`, `manifest.json`, and `styles.css`.
 
