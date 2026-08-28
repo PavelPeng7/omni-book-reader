@@ -23,20 +23,15 @@ describe("reader settings", () => {
       contentWidth: 2000,
       pageMargin: -20,
     })).toEqual({
-      interfaceLanguage: "zh",
-      theme: "auto",
+      ...DEFAULT_SETTINGS,
       layout: "scrolled",
-      tapToTurnPages: true,
       font: "sans",
       fontSizePercent: 180,
       lineHeight: 1.2,
       letterSpacing: 0.12,
       paragraphSpacing: 0,
-      widthMode: "standard",
       contentWidth: 1200,
       pageMargin: 0,
-      exportTemplate: "classic",
-      customExportTemplatePath: "",
     });
     expect(normalizeSettings({
       interfaceLanguage: "en",

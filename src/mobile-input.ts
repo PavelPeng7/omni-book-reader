@@ -72,6 +72,25 @@ export function isTextSelectionGesture(
   return startedWithSelection || selectingText || hasCurrentSelection;
 }
 
-export function shouldIsolatePaginatorPointer(pointerType: string): boolean {
-  return pointerType === "touch";
+export function selectionEdgePageTurnDirection(
+  clientX: number,
+  viewportWidth: number,
+  edgeSize = 44,
+): PageTurnDirection | null {
+  if (!Number.isFinite(clientX) || !Number.isFinite(viewportWidth) || viewportWidth <= 0) return null;
+  if (!Number.isFinite(edgeSize) || edgeSize <= 0 || edgeSize * 2 >= viewportWidth) return null;
+  if (clientX < 0 || clientX > viewportWidth) return null;
+  if (clientX <= edgeSize) return "previous";
+  if (clientX >= viewportWidth - edgeSize) return "next";
+  return null;
+}
+
+export function shouldBlockPageTurnForSelection(
+  hasActiveSelection: boolean,
+  hasPendingSelection: boolean,
+  now: number,
+  guardedUntil: number,
+): boolean {
+  return hasActiveSelection || hasPendingSelection
+    || (Number.isFinite(now) && Number.isFinite(guardedUntil) && now <= guardedUntil);
 }

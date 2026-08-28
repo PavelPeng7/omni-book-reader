@@ -6,6 +6,12 @@ export type HighlightColor = "yellow" | "green" | "blue" | "pink";
 export type HighlightStyle = "highlight" | "underline" | "strikethrough" | "squiggly";
 export type ExportTemplatePreset = "classic" | "compact" | "callout" | "custom";
 export type InterfaceLanguage = "zh" | "en";
+export type BookshelfDisplayMode = "list" | "grid" | "covers";
+export type BookshelfFilter = "all" | "reading" | "finished" | "reading-list";
+export type BookshelfSort = "recent" | "title" | "progress";
+export type SidebarPreference = "toc" | "highlights" | "bookmarks";
+export type ReadingPreset = "custom" | "comfortable" | "compact" | "large";
+export type InterfaceDensity = "comfortable" | "compact";
 
 export interface ReaderSettings {
   interfaceLanguage: InterfaceLanguage;
@@ -22,6 +28,17 @@ export interface ReaderSettings {
   pageMargin: number;
   exportTemplate: ExportTemplatePreset;
   customExportTemplatePath: string;
+  bookshelfDisplayMode: BookshelfDisplayMode;
+  bookshelfFilter: BookshelfFilter;
+  bookshelfSort: BookshelfSort;
+  lastSidebarTab: SidebarPreference;
+  readerChromeAutoHide: boolean;
+  readingPreset: ReadingPreset;
+  defaultHighlightColor: HighlightColor;
+  defaultHighlightStyle: HighlightStyle;
+  connectAdjacentHighlights: boolean;
+  interfaceDensity: InterfaceDensity;
+  hasSeenReaderTutorial: boolean;
 }
 
 export interface SourceSignature {

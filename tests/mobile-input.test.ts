@@ -3,8 +3,9 @@ import {
   isPageTurnTap,
   isTextSelectionGesture,
   mobilePageTurnDirection,
-  shouldIsolatePaginatorPointer,
   shouldSuppressTouchPageTurn,
+  shouldBlockPageTurnForSelection,
+  selectionEdgePageTurnDirection,
   swipePageTurnDirection,
   tapPageTurnDirection,
 } from "../src/mobile-input";
@@ -67,9 +68,18 @@ describe("mobilePageTurnDirection", () => {
     expect(isTextSelectionGesture(false, false, false)).toBe(false);
   });
 
-  it("isolates touch pointers from Foliate's automatic selection paging", () => {
-    expect(shouldIsolatePaginatorPointer("touch")).toBe(true);
-    expect(shouldIsolatePaginatorPointer("mouse")).toBe(false);
-    expect(shouldIsolatePaginatorPointer("pen")).toBe(false);
+  it("blocks page turns while selection state is active or settling", () => {
+    expect(shouldBlockPageTurnForSelection(true, false, 1000, 0)).toBe(true);
+    expect(shouldBlockPageTurnForSelection(false, true, 1000, 0)).toBe(true);
+    expect(shouldBlockPageTurnForSelection(false, false, 1000, 1200)).toBe(true);
+    expect(shouldBlockPageTurnForSelection(false, false, 1201, 1200)).toBe(false);
+  });
+
+  it("turns pages only when a selection handle stays near a valid viewport edge", () => {
+    expect(selectionEdgePageTurnDirection(20, 400)).toBe("previous");
+    expect(selectionEdgePageTurnDirection(380, 400)).toBe("next");
+    expect(selectionEdgePageTurnDirection(200, 400)).toBeNull();
+    expect(selectionEdgePageTurnDirection(-1, 400)).toBeNull();
+    expect(selectionEdgePageTurnDirection(20, 80)).toBeNull();
   });
 });

@@ -15,6 +15,17 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   pageMargin: 48,
   exportTemplate: "classic",
   customExportTemplatePath: "",
+  bookshelfDisplayMode: "grid",
+  bookshelfFilter: "all",
+  bookshelfSort: "recent",
+  lastSidebarTab: "toc",
+  readerChromeAutoHide: true,
+  readingPreset: "comfortable",
+  defaultHighlightColor: "yellow",
+  defaultHighlightStyle: "highlight",
+  connectAdjacentHighlights: true,
+  interfaceDensity: "comfortable",
+  hasSeenReaderTutorial: false,
 };
 
 const themes = new Set(["auto", "light", "dark", "sepia"]);
@@ -23,6 +34,14 @@ const fonts = new Set(["obsidian", "publisher", "serif", "sans"]);
 const widthModes = new Set(["standard", "wide", "full", "edge"]);
 const exportTemplates = new Set(["classic", "compact", "callout", "custom"]);
 const interfaceLanguages = new Set(["zh", "en"]);
+const bookshelfDisplayModes = new Set(["list", "grid", "covers"]);
+const bookshelfFilters = new Set(["all", "reading", "finished", "reading-list"]);
+const bookshelfSorts = new Set(["recent", "title", "progress"]);
+const sidebarTabs = new Set(["toc", "highlights", "bookmarks"]);
+const readingPresets = new Set(["custom", "comfortable", "compact", "large"]);
+const highlightColors = new Set(["yellow", "green", "blue", "pink"]);
+const highlightStyles = new Set(["highlight", "underline", "strikethrough", "squiggly"]);
+const interfaceDensities = new Set(["comfortable", "compact"]);
 
 const clamp = (value: unknown, min: number, max: number, fallback: number): number => {
   const number = typeof value === "number" ? value : Number(value);
@@ -56,6 +75,27 @@ export function normalizeSettings(value: unknown): ReaderSettings {
     customExportTemplatePath: typeof input.customExportTemplatePath === "string"
       ? input.customExportTemplatePath.replace(/\\/g, "/").trim().slice(0, 1000)
       : DEFAULT_SETTINGS.customExportTemplatePath,
+    bookshelfDisplayMode: bookshelfDisplayModes.has(String(input.bookshelfDisplayMode))
+      ? input.bookshelfDisplayMode as ReaderSettings["bookshelfDisplayMode"] : DEFAULT_SETTINGS.bookshelfDisplayMode,
+    bookshelfFilter: bookshelfFilters.has(String(input.bookshelfFilter))
+      ? input.bookshelfFilter as ReaderSettings["bookshelfFilter"] : DEFAULT_SETTINGS.bookshelfFilter,
+    bookshelfSort: bookshelfSorts.has(String(input.bookshelfSort))
+      ? input.bookshelfSort as ReaderSettings["bookshelfSort"] : DEFAULT_SETTINGS.bookshelfSort,
+    lastSidebarTab: sidebarTabs.has(String(input.lastSidebarTab))
+      ? input.lastSidebarTab as ReaderSettings["lastSidebarTab"] : DEFAULT_SETTINGS.lastSidebarTab,
+    readerChromeAutoHide: typeof input.readerChromeAutoHide === "boolean" ? input.readerChromeAutoHide : DEFAULT_SETTINGS.readerChromeAutoHide,
+    readingPreset: readingPresets.has(String(input.readingPreset))
+      ? input.readingPreset as ReaderSettings["readingPreset"] : DEFAULT_SETTINGS.readingPreset,
+    defaultHighlightColor: highlightColors.has(String(input.defaultHighlightColor))
+      ? input.defaultHighlightColor as ReaderSettings["defaultHighlightColor"] : DEFAULT_SETTINGS.defaultHighlightColor,
+    defaultHighlightStyle: highlightStyles.has(String(input.defaultHighlightStyle))
+      ? input.defaultHighlightStyle as ReaderSettings["defaultHighlightStyle"] : DEFAULT_SETTINGS.defaultHighlightStyle,
+    connectAdjacentHighlights: typeof input.connectAdjacentHighlights === "boolean"
+      ? input.connectAdjacentHighlights : DEFAULT_SETTINGS.connectAdjacentHighlights,
+    interfaceDensity: interfaceDensities.has(String(input.interfaceDensity))
+      ? input.interfaceDensity as ReaderSettings["interfaceDensity"] : DEFAULT_SETTINGS.interfaceDensity,
+    hasSeenReaderTutorial: typeof input.hasSeenReaderTutorial === "boolean"
+      ? input.hasSeenReaderTutorial : DEFAULT_SETTINGS.hasSeenReaderTutorial,
   };
 }
 
