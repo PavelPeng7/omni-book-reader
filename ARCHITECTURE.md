@@ -47,7 +47,7 @@ The schema is defined in `src/types.ts`. Any schema change must include normaliz
 
 Text selection and reader navigation share touch, pointer, keyboard, and wheel input. Selection has priority whenever a native selection, pending annotation selection, or short selection-settling guard is active.
 
-Edge-assisted selection may advance between pages only while the target remains in the same EPUB spine section. A chapter-boundary decision must happen before calling Foliate navigation so the current selection and viewport do not flash or jump. A post-navigation section check remains as a compatibility fallback when reliable paginator state is unavailable.
+Touch selection-handle drags never navigate. Desktop mouse edge-assisted selection may advance between pages only while the target remains in the same EPUB spine section. A chapter-boundary decision must happen before calling Foliate navigation so the current selection and viewport do not flash or jump. A post-navigation section check remains as a compatibility fallback when reliable paginator state is unavailable.
 
 Physical left/right input is not the same as logical previous/next content in RTL publications. Direction-sensitive selection and page-turn changes must cover both LTR and RTL behavior. See [`docs/design-docs/systems/reader-selection-navigation.md`](docs/design-docs/systems/reader-selection-navigation.md) for the interaction invariants and test matrix.
 

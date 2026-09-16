@@ -46,6 +46,26 @@ describe("mobilePageTurnDirection", () => {
     })).toEqual({ blocked: false, notify: false });
   });
 
+  it("arbitrates each ordinary selection-lock state independently", () => {
+    const base = {
+      source: "ordinary" as const,
+      hasActiveSelection: false,
+      hasPendingSelection: false,
+      now: 1000,
+      guardedUntil: 0,
+      noticeAlreadyShown: false,
+    };
+
+    expect(decideSelectionPageTurn({ ...base, hasActiveSelection: true }))
+      .toEqual({ blocked: true, notify: true });
+    expect(decideSelectionPageTurn({ ...base, hasPendingSelection: true }))
+      .toEqual({ blocked: true, notify: true });
+    expect(decideSelectionPageTurn({ ...base, guardedUntil: 1200 }))
+      .toEqual({ blocked: true, notify: true });
+    expect(decideSelectionPageTurn(base))
+      .toEqual({ blocked: false, notify: false });
+  });
+
   it("maps Android volume and page keys to reader navigation", () => {
     expect(mobilePageTurnDirection({ key: "AudioVolumeUp" })).toBe("previous");
     expect(mobilePageTurnDirection({ code: "AudioVolumeDown" })).toBe("next");

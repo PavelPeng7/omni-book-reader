@@ -1572,6 +1572,7 @@ export class OmniBookReaderView extends FileView {
       selectingText = false;
     };
     const selectStart = (): void => {
+      if (!this.pendingSelection) this.selectionNavigationNoticeShown = false;
       selectingText = true;
       touchStartPoint = null;
       markSelectionInteraction(850);
@@ -1734,6 +1735,7 @@ export class OmniBookReaderView extends FileView {
 
   private queuePageTurn(direction: "previous" | "next"): void {
     if (!this.reader) return;
+    if (this.blockPageTurnForSelection("ordinary")) return;
     if (this.pageTurnRunning) {
       this.pendingPageTurn = direction;
       return;
@@ -2150,8 +2152,10 @@ export class OmniBookReaderView extends FileView {
   private clearPendingSelection(clearNative = true): void {
     if (this.selectionClearTimer !== null) window.clearTimeout(this.selectionClearTimer);
     this.selectionClearTimer = null;
-    this.selectionPageTurnGuardUntil = 0;
-    this.selectionNavigationNoticeShown = false;
+    if (clearNative) {
+      this.selectionPageTurnGuardUntil = 0;
+      this.selectionNavigationNoticeShown = false;
+    }
     if (clearNative) {
       try {
         this.pendingSelection?.selection.removeAllRanges();
