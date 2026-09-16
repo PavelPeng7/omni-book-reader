@@ -85,7 +85,7 @@ describe("Foliate mobile runtime compatibility", () => {
   it("loads a revoked Foliate chapter Blob through normalized iframe srcdoc", async () => {
     installObjectUrlStubs();
     installBlobUrlRegistry();
-    installFoliateBlobIframePatch();
+    installFoliateBlobIframePatch(true);
     const iframe = document.createElement("iframe");
     document.body.append(iframe);
     const url = URL.createObjectURL(new Blob([
@@ -104,10 +104,26 @@ describe("Foliate mobile runtime compatibility", () => {
   it("leaves non-Blob iframe sources on the native setter", () => {
     installObjectUrlStubs();
     installBlobUrlRegistry();
-    installFoliateBlobIframePatch();
+    installFoliateBlobIframePatch(true);
     const iframe = document.createElement("iframe");
     iframe.src = "about:blank";
     expect(iframe.getAttribute("src")).toBe("about:blank");
+  });
+
+  it("leaves desktop Blob iframe sources on the native setter", async () => {
+    installObjectUrlStubs();
+    installBlobUrlRegistry();
+    installFoliateBlobIframePatch(false);
+    const iframe = document.createElement("iframe");
+    const url = URL.createObjectURL(new Blob([
+      "<html><body><a href=\"chapter.xhtml#note\"><sup>1</sup></a></body></html>",
+    ], { type: "application/xhtml+xml" }));
+
+    iframe.src = url;
+    await settleAsyncReaders();
+
+    expect(iframe.getAttribute("src")).toBe(url);
+    expect(iframe.srcdoc).toBe("");
   });
 
   it("removes allow-scripts only from Foliate desktop sandbox values", () => {

@@ -1237,7 +1237,7 @@ export class OmniBookReaderView extends FileView {
   private async ensureFoliateRuntimeCompatibility(): Promise<void> {
     installBlobUrlRegistry();
     installDesktopFoliateIframeSandboxPatch(Platform.isMobile);
-    installFoliateBlobIframePatch();
+    installFoliateBlobIframePatch(Platform.isMobile);
     await ensureFoliateViewModule();
   }
 
