@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  decideSelectionPageTurn,
   isPageTurnTap,
   isTextSelectionGesture,
   mobilePageTurnDirection,
@@ -12,6 +13,39 @@ import {
 } from "../src/mobile-input";
 
 describe("mobilePageTurnDirection", () => {
+  it("blocks touch selection-edge turns while preserving mouse edge assistance", () => {
+    const selection = {
+      hasActiveSelection: true,
+      hasPendingSelection: true,
+      now: 1000,
+      guardedUntil: 1800,
+      noticeAlreadyShown: false,
+    };
+
+    expect(decideSelectionPageTurn({ ...selection, source: "touch-selection-edge" }).blocked).toBe(true);
+    expect(decideSelectionPageTurn({ ...selection, source: "mouse-selection-edge" }).blocked).toBe(false);
+  });
+
+  it("notifies once for a blocked selection and allows ordinary turns after it clears", () => {
+    const collapsedTouchDrag = {
+      source: "touch-selection-edge" as const,
+      hasActiveSelection: false,
+      hasPendingSelection: false,
+      now: 2000,
+      guardedUntil: 0,
+    };
+
+    expect(decideSelectionPageTurn({ ...collapsedTouchDrag, noticeAlreadyShown: false }))
+      .toEqual({ blocked: true, notify: true });
+    expect(decideSelectionPageTurn({ ...collapsedTouchDrag, noticeAlreadyShown: true }))
+      .toEqual({ blocked: true, notify: false });
+    expect(decideSelectionPageTurn({
+      ...collapsedTouchDrag,
+      source: "ordinary",
+      noticeAlreadyShown: false,
+    })).toEqual({ blocked: false, notify: false });
+  });
+
   it("maps Android volume and page keys to reader navigation", () => {
     expect(mobilePageTurnDirection({ key: "AudioVolumeUp" })).toBe("previous");
     expect(mobilePageTurnDirection({ code: "AudioVolumeDown" })).toBe("next");

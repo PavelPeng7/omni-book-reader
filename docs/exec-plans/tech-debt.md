@@ -11,7 +11,7 @@ Record intentional compromises that have a concrete maintenance, reliability, se
 - Introduced: 2026-08-28, `docs/exec-plans/completed/chapter-boundary-selection.md`
 - Impact: unit tests cover gesture and boundary decisions, but cannot reproduce browser-native selection-handle timing, iframe event ordering, or document replacement at a spine boundary; regressions can remain device-specific until manual testing
 - Reason accepted: the current Vitest/jsdom environment does not provide native selection handles or an Obsidian mobile runtime
-- Exit criteria: an integration or device test exercises a selection-handle drag across interior pages and against LTR/RTL chapter boundaries, and asserts that only valid same-section navigation occurs
+- Exit criteria: an integration or device test asserts that mobile selection-handle drags never navigate, while desktop mouse edge-assisted selection still navigates only within valid LTR/RTL section boundaries
 - Owner/trigger: revisit when adding browser-driven Obsidian tests, upgrading Foliate, or changing selection/touch event handling
 
 ## Entry template

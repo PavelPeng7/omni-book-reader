@@ -13,8 +13,8 @@ This makes selection/navigation bugs timing-sensitive. A check performed only af
 
 1. Native or pending text selection owns navigation input until selection state has settled.
 2. A selection gesture must not be reinterpreted as a tap, swipe, key, wheel, or hardware-button page turn.
-3. Edge-assisted selection may move between pages inside one EPUB spine section.
-4. Edge-assisted selection must stop before crossing into another spine section. The current selection remains active so the user can save it before continuing in the next chapter.
+3. Touch selection-handle drags never turn pages. Mobile readers select cross-page content as separate highlights, which may be joined by the existing adjacent-highlight behavior.
+4. Desktop mouse edge-assisted selection may move between pages inside one EPUB spine section, but must stop before crossing into another spine section. The current selection remains active so the user can save it before continuing in the next chapter.
 5. Navigation eligibility is decided before invoking `goLeft`, `goRight`, `prev`, `next`, or `goTo` when the required state is available.
 6. A post-navigation section check is a fallback for dependency/runtime uncertainty, not the primary guard.
 7. Physical left/right direction must be mapped through the publication's LTR/RTL reading direction before reasoning about previous/next sections.
@@ -31,7 +31,7 @@ Keep timing-free decisions in `mobile-input.ts`. Do not add more event-policy ar
 
 ## Chapter-boundary preflight
 
-For the pinned `foliate-js` paginator, `page` and `pages` expose the current rendered page and total pages. In paginated reflowable content, page `1` is the first content page and `pages - 2` is the last content page. Before an edge-assisted selection turn:
+For the pinned `foliate-js` paginator, `page` and `pages` expose the current rendered page and total pages. In paginated reflowable content, page `1` is the first content page and `pages - 2` is the last content page. Before a desktop mouse edge-assisted selection turn:
 
 - a backward logical turn at page `1` would leave the current section;
 - a forward logical turn at page `pages - 2` would leave the current section;
@@ -61,10 +61,11 @@ For changes involving selection or navigation, cover the applicable rows:
 | Native selection active | All ordinary page-turn inputs are blocked |
 | Pending annotation selection | Navigation remains blocked even if the native range briefly collapses |
 | Selection settling guard | Synthetic click/touch follow-up does not navigate |
-| Interior page, LTR | Left/right edge assistance stays in the current section |
-| First/last page, LTR | Boundary edge assistance does not call navigation |
-| Interior page, RTL | Physical directions map to the correct logical turn |
-| First/last page, RTL | Boundary edge assistance does not call navigation |
+| Touch selection handle, any page | Holding or dragging at either viewport edge does not navigate |
+| Mouse selection, interior page, LTR | Left/right edge assistance stays in the current section |
+| Mouse selection, first/last page, LTR | Boundary edge assistance does not call navigation |
+| Mouse selection, interior page, RTL | Physical directions map to the correct logical turn |
+| Mouse selection, first/last page, RTL | Boundary edge assistance does not call navigation |
 | Missing paginator state | Compatibility fallback preserves or restores the original section |
 | Scrolled or fixed layout | Paginated edge-assistance rules are not applied accidentally |
 
@@ -76,7 +77,7 @@ Pure-function tests are necessary but do not fully model browser-native selectio
 - Check only `Selection.isCollapsed`; handle gestures can temporarily collapse the range.
 - Let Foliate's touch snap and plugin-level gesture handling both own the same completed gesture.
 - Treat physical right as logical next without consulting the book direction.
-- Disable all edge assistance to fix one boundary case; preserve valid same-section selection behavior.
+- Disable desktop mouse edge assistance while fixing the touch path; preserve valid same-section desktop behavior.
 
 ## Related records
 

@@ -8,7 +8,7 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 - Product specification: baseline documented in `docs/product-specs/index.md`.
 - Architecture: current runtime, persistence, export, safety, and release boundaries documented in `ARCHITECTURE.md`.
 - Verification: `npm run verify:quick` and `npm run verify:full` are the standard gates.
-- Active feature plan: none.
+- Active feature plan: [`mobile-selection-navigation-lock.md`](mobile-selection-navigation-lock.md) for GitHub Issue #3.
 
 ## Workflow
 

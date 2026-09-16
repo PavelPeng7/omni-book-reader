@@ -1,4 +1,19 @@
 export type PageTurnDirection = "previous" | "next";
+export type SelectionPageTurnSource = "ordinary" | "touch-selection-edge" | "mouse-selection-edge";
+
+export interface SelectionPageTurnRequest {
+  source: SelectionPageTurnSource;
+  hasActiveSelection: boolean;
+  hasPendingSelection: boolean;
+  now: number;
+  guardedUntil: number;
+  noticeAlreadyShown: boolean;
+}
+
+export interface SelectionPageTurnDecision {
+  blocked: boolean;
+  notify: boolean;
+}
 
 export interface TimedTouchPoint {
   x: number;
@@ -107,4 +122,16 @@ export function shouldBlockPageTurnForSelection(
 ): boolean {
   return hasActiveSelection || hasPendingSelection
     || (Number.isFinite(now) && Number.isFinite(guardedUntil) && now <= guardedUntil);
+}
+
+export function decideSelectionPageTurn(request: SelectionPageTurnRequest): SelectionPageTurnDecision {
+  if (request.source === "mouse-selection-edge") return { blocked: false, notify: false };
+  const blocked = request.source === "touch-selection-edge"
+    || shouldBlockPageTurnForSelection(
+      request.hasActiveSelection,
+      request.hasPendingSelection,
+      request.now,
+      request.guardedUntil,
+    );
+  return { blocked, notify: blocked && !request.noticeAlreadyShown };
 }
