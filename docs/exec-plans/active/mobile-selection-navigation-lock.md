@@ -36,9 +36,10 @@ Prevent touch selection-handle drags from turning paginated pages on mobile whil
 - 2026-09-16: `npx vitest run tests/mobile-input.test.ts` passed (15 tests).
 - 2026-09-16: `npm run lint` passed.
 - 2026-09-16: `npm run check` passed.
-- 2026-09-17: post-review `npm test` passed (21 files and 67 tests; 1 fixture test skipped by its existing condition).
+- 2026-09-17: final `npm run lint`, `npm run check`, `npm test`, `npm run build`, and `npm run validate:release` passed after all review fixes (21 test files and 67 tests passed; 1 fixture test skipped by its existing condition; release 0.9.3 validated).
 - 2026-09-16: one earlier full-suite run exposed a timing failure in the unrelated Foliate iframe test; its focused rerun and the final full-suite run passed.
 - 2026-09-16: `npm run build` and `npm run validate:release` passed; release 0.9.3 artifacts validated.
 - 2026-09-17: `npm run verify:full` could not start its nested npm command because both Node.js 24.14.1 and supported Node.js 20.20.2 raised `spawn EINVAL` when launching `npm.cmd` on this Windows environment; every component gate was run directly as recorded above.
 - 2026-09-17: two-axis review found ordinary button navigation and transient-collapse gaps; both were fixed, the policy matrix was expanded, and architecture documentation was synchronized.
+- 2026-09-17: follow-up review found a prolonged native-selection collapse could outlive the time guard while the finger remained down; an explicit touch-selection-gesture state now keeps the shared navigation lock active until touch end or cancellation.
 - Pending: Android and iOS manual selection-handle verification in Obsidian mobile.

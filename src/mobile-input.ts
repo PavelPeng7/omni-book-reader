@@ -5,6 +5,7 @@ export interface SelectionPageTurnRequest {
   source: SelectionPageTurnSource;
   hasActiveSelection: boolean;
   hasPendingSelection: boolean;
+  hasSelectionGesture: boolean;
   now: number;
   guardedUntil: number;
   noticeAlreadyShown: boolean;
@@ -126,7 +127,7 @@ export function shouldBlockPageTurnForSelection(
 
 export function decideSelectionPageTurn(request: SelectionPageTurnRequest): SelectionPageTurnDecision {
   if (request.source === "mouse-selection-edge") return { blocked: false, notify: false };
-  const blocked = request.source === "touch-selection-edge"
+  const blocked = request.source === "touch-selection-edge" || request.hasSelectionGesture
     || shouldBlockPageTurnForSelection(
       request.hasActiveSelection,
       request.hasPendingSelection,

@@ -499,6 +499,7 @@ export class OmniBookReaderView extends FileView {
   private selectionPageTurnGuardUntil = 0;
   private selectionPageTurnRunning = false;
   private selectionNavigationNoticeShown = false;
+  private selectionTouchGestureActive = false;
   private bookTitle = "Omni Book Reader";
   private bookAuthor = "";
   private fixedLayout = false;
@@ -1392,6 +1393,7 @@ export class OmniBookReaderView extends FileView {
     let selectionEdgeTurnSource: SelectionPageTurnSource | null = null;
     let touchStartPoint: { x: number; y: number; time: number; target: Element | null } | null = null;
     let selectionTouchStartPoint: { x: number; y: number; time: number } | null = null;
+    let touchInProgress = false;
     let selectingText = false;
     let touchStartedWithSelection = false;
     let suppressClickUntil = 0;
@@ -1451,8 +1453,10 @@ export class OmniBookReaderView extends FileView {
       scheduleSelectionEdgeTurn(event, "mouse-selection-edge");
     };
     const touchStart = (event: TouchEvent): void => {
+      touchInProgress = true;
       selectingText = false;
       touchStartedWithSelection = this.shouldBlockPageTurnForSelection(document);
+      this.selectionTouchGestureActive = touchStartedWithSelection;
       if (touchStartedWithSelection) markSelectionInteraction();
       const touch = event.changedTouches.item(0);
       selectionTouchStartPoint = touchStartedWithSelection && touch ? {
@@ -1476,6 +1480,7 @@ export class OmniBookReaderView extends FileView {
       const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
       if (selection && !selection.isCollapsed) {
         selectingText = true;
+        this.selectionTouchGestureActive = true;
         touchStartPoint = null;
         markSelectionInteraction();
         const touch = event.touches.item(0);
@@ -1516,14 +1521,20 @@ export class OmniBookReaderView extends FileView {
       if (!start || !touch) {
         if (hasTextSelection) {
           if (attemptedSelectionPageTurn) this.blockPageTurnForSelection("ordinary", document, event);
+          this.selectionTouchGestureActive = false;
+          touchInProgress = false;
           markSelectionInteraction();
           suppressClickUntil = event.timeStamp + 700;
           event.stopPropagation();
           event.stopImmediatePropagation();
         }
+        this.selectionTouchGestureActive = false;
+        touchInProgress = false;
         capture();
         return;
       }
+      this.selectionTouchGestureActive = false;
+      touchInProgress = false;
       const end = {
         x: touch.clientX,
         y: touch.clientY,
@@ -1570,10 +1581,13 @@ export class OmniBookReaderView extends FileView {
       selectionTouchStartPoint = null;
       touchStartedWithSelection = false;
       selectingText = false;
+      touchInProgress = false;
+      this.selectionTouchGestureActive = false;
     };
     const selectStart = (): void => {
       if (!this.pendingSelection) this.selectionNavigationNoticeShown = false;
       selectingText = true;
+      if (touchInProgress) this.selectionTouchGestureActive = true;
       touchStartPoint = null;
       markSelectionInteraction(850);
       capture();
@@ -1634,6 +1648,8 @@ export class OmniBookReaderView extends FileView {
       if (selectionFrame !== null) window.cancelAnimationFrame(selectionFrame);
       if (selectionRetry !== null) window.clearTimeout(selectionRetry);
       cancelSelectionEdgeTurn();
+      this.selectionTouchGestureActive = false;
+      touchInProgress = false;
       document.removeEventListener("pointerup", pointerUp);
       document.removeEventListener("pointermove", pointerMove);
       document.removeEventListener("mouseup", capture);
@@ -1684,6 +1700,7 @@ export class OmniBookReaderView extends FileView {
       source,
       hasActiveSelection: this.hasActiveReaderSelection(preferredDocument),
       hasPendingSelection: Boolean(this.pendingSelection),
+      hasSelectionGesture: this.selectionTouchGestureActive,
       now: Date.now(),
       guardedUntil: this.selectionPageTurnGuardUntil,
       noticeAlreadyShown: this.selectionNavigationNoticeShown,
@@ -2155,6 +2172,7 @@ export class OmniBookReaderView extends FileView {
     if (clearNative) {
       this.selectionPageTurnGuardUntil = 0;
       this.selectionNavigationNoticeShown = false;
+      this.selectionTouchGestureActive = false;
     }
     if (clearNative) {
       try {

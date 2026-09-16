@@ -17,6 +17,7 @@ describe("mobilePageTurnDirection", () => {
     const selection = {
       hasActiveSelection: true,
       hasPendingSelection: true,
+      hasSelectionGesture: true,
       now: 1000,
       guardedUntil: 1800,
       noticeAlreadyShown: false,
@@ -31,6 +32,7 @@ describe("mobilePageTurnDirection", () => {
       source: "touch-selection-edge" as const,
       hasActiveSelection: false,
       hasPendingSelection: false,
+      hasSelectionGesture: true,
       now: 2000,
       guardedUntil: 0,
     };
@@ -42,6 +44,7 @@ describe("mobilePageTurnDirection", () => {
     expect(decideSelectionPageTurn({
       ...collapsedTouchDrag,
       source: "ordinary",
+      hasSelectionGesture: false,
       noticeAlreadyShown: false,
     })).toEqual({ blocked: false, notify: false });
   });
@@ -51,6 +54,7 @@ describe("mobilePageTurnDirection", () => {
       source: "ordinary" as const,
       hasActiveSelection: false,
       hasPendingSelection: false,
+      hasSelectionGesture: false,
       now: 1000,
       guardedUntil: 0,
       noticeAlreadyShown: false,
@@ -61,6 +65,8 @@ describe("mobilePageTurnDirection", () => {
     expect(decideSelectionPageTurn({ ...base, hasPendingSelection: true }))
       .toEqual({ blocked: true, notify: true });
     expect(decideSelectionPageTurn({ ...base, guardedUntil: 1200 }))
+      .toEqual({ blocked: true, notify: true });
+    expect(decideSelectionPageTurn({ ...base, hasSelectionGesture: true }))
       .toEqual({ blocked: true, notify: true });
     expect(decideSelectionPageTurn(base))
       .toEqual({ blocked: false, notify: false });
