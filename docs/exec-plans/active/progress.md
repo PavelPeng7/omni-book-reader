@@ -9,6 +9,7 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 - Architecture: current runtime, persistence, export, safety, and release boundaries documented in `ARCHITECTURE.md`.
 - Verification: `npm run verify:quick` and `npm run verify:full` are the standard gates.
 - Active feature plan: [`mobile-selection-navigation-lock.md`](mobile-selection-navigation-lock.md) for GitHub Issue #3.
+- Active release plan: [`release-0.9.4.md`](release-0.9.4.md).
 
 ## Workflow
 
