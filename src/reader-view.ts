@@ -1521,8 +1521,6 @@ export class OmniBookReaderView extends FileView {
       if (!start || !touch) {
         if (hasTextSelection) {
           if (attemptedSelectionPageTurn) this.blockPageTurnForSelection("ordinary", document, event);
-          this.selectionTouchGestureActive = false;
-          touchInProgress = false;
           markSelectionInteraction();
           suppressClickUntil = event.timeStamp + 700;
           event.stopPropagation();
