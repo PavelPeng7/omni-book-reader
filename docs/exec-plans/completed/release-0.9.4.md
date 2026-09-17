@@ -1,6 +1,6 @@
 # Release 0.9.4
 
-Status: Awaiting mobile device validation or explicit risk acceptance
+Status: Completed
 
 ## Scope
 
@@ -20,4 +20,7 @@ Publish the mobile selection navigation fix as Omni Book Reader 0.9.4 through th
 - 2026-09-17: lint and TypeScript checks passed.
 - 2026-09-17: 21 test files and 67 tests passed; 1 fixture test skipped by its existing condition.
 - 2026-09-17: production build, 0.9.4 release validation, and packaging passed.
-- Pending: Android and iOS native selection-handle verification, or explicit maintainer acceptance of releasing without it.
+- 2026-09-17: maintainer explicitly accepted the remaining Android and iOS native selection-handle validation risk and requested publication.
+- 2026-09-17: pushed tag `0.9.4` at commit `d7517885941285a0ba1f3549f5d2c8a0e8e55a29`.
+- 2026-09-17: GitHub Actions run `35226775107` succeeded and published a non-draft, non-prerelease `0.9.4` release.
+- 2026-09-17: verified the published `manifest.json` reports version `0.9.4` and `main.js`, `manifest.json`, and `styles.css` are present and non-empty.
