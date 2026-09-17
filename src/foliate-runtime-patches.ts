@@ -51,9 +51,12 @@ export function installDesktopFoliateIframeSandboxPatch(isMobile: boolean): void
   desktopSandboxPatchInstalled = true;
 }
 
-/** Convert Foliate Blob chapter iframes to normalized srcdoc markup. */
-export function installFoliateBlobIframePatch(onError?: (error: unknown) => void): void {
-  if (blobIframePatchInstalled || typeof HTMLIFrameElement === "undefined") return;
+/** Convert Foliate Blob chapter iframes to normalized srcdoc markup on mobile WebViews. */
+export function installFoliateBlobIframePatch(
+  isMobile: boolean,
+  onError?: (error: unknown) => void,
+): void {
+  if (!isMobile || blobIframePatchInstalled || typeof HTMLIFrameElement === "undefined") return;
   const descriptor = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "src");
   if (!descriptor?.get || !descriptor.set) return;
   const getter = Reflect.get(descriptor, "get") as (this: HTMLIFrameElement) => string;
