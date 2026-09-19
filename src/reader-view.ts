@@ -46,6 +46,7 @@ import {
 } from "./mobile-input";
 import { installPublicationSanitizer } from "./sanitizer";
 import { SearchSession } from "./search-session";
+import { canNavigateToSavedLocation } from "./saved-location";
 import { ReaderSettingsModal, type SettingsHost } from "./settings-ui";
 import type { ReaderDataStore } from "./store";
 import type {
@@ -2499,12 +2500,6 @@ export class OmniBookReaderView extends FileView {
       row.setCssProps({ "--highlight-color": HIGHLIGHT_COLORS[highlight.color].value });
       const open = row.createEl("button", { cls: "omni-book-reader-saved-content", attr: { type: "button" } });
       open.createDiv({ cls: "omni-book-reader-highlight-text", text: highlight.text });
-      open.createDiv({ cls: "omni-book-reader-saved-meta", text: `${highlight.chapter} · ${this.definitionLabel(HIGHLIGHT_STYLES[highlight.style])}` });
-      if (highlight.tags.length) {
-        const tags = open.createDiv({ cls: "omni-book-reader-highlight-tags" });
-        for (const tag of highlight.tags) tags.createSpan({ text: tag });
-      }
-      if (highlight.note) open.createDiv({ cls: "omni-book-reader-note-preview", text: highlight.note });
       open.addEventListener("click", () => void this.navigateSavedLocation(highlight));
       const note = iconButton(row, "notebook-pen", highlight.note ? t("编辑标注与笔记", "Edit annotation and note") : t("编辑标注并添加笔记", "Edit annotation and add note"));
       note.toggleClass("is-active", Boolean(highlight.note));
@@ -2519,8 +2514,17 @@ export class OmniBookReaderView extends FileView {
 
   private async navigateSavedLocation(item: Bookmark | ReaderHighlight): Promise<void> {
     if (!this.reader) return;
-    const result = await this.reader.goTo(item.cfi);
-    if (!result) {
+    if (!canNavigateToSavedLocation(item.cfi, (target) => this.reader?.resolveNavigation(target))) {
+      item.stale = true;
+      this.plugin.store.markChanged(0);
+      this.renderBookmarks();
+      this.renderHighlights();
+      new Notice(this.text("该定位已失效，数据已保留供你删除或检查", "This location is no longer valid. Its data was kept for review or deletion."));
+      return;
+    }
+    try {
+      await this.reader.goTo(item.cfi);
+    } catch {
       item.stale = true;
       this.plugin.store.markChanged(0);
       this.renderBookmarks();

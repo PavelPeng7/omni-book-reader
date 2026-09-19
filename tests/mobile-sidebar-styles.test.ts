@@ -32,7 +32,8 @@ describe("mobile reader sidebar layout", () => {
     const savedContent = declarations(".omni-book-reader-saved-content");
     const panel = declarations(".omni-book-reader-panel");
 
-    expect(styles).toMatch(/\.omni-book-reader-highlight-text\s*\{\s*-webkit-line-clamp:\s*4;/);
+    expect(styles).toMatch(/\.omni-book-reader-highlight-text\s*\{[^}]*overflow-wrap:\s*anywhere;/);
+    expect(styles).not.toMatch(/\.omni-book-reader-highlight-text\s*\{[^}]*-webkit-line-clamp/);
     expect(savedContent).toContain("min-width: 0");
     expect(panel).toContain("overflow-x: hidden");
   });

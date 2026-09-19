@@ -271,7 +271,12 @@
 }
 
 .omni-book-reader-highlight-text {
-  -webkit-line-clamp: 4;
+  display: block;
+  overflow: visible;
+  color: var(--pavel-botanical-forest, var(--text-normal));
+  font-size: var(--font-ui-small);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
 }
 
 .omni-book-reader-saved-item {
