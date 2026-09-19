@@ -256,16 +256,7 @@
   font-weight: var(--font-semibold);
 }
 
-.omni-book-reader-search-result-excerpt {
-  display: -webkit-box;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
-  line-height: 1.45;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
+.omni-book-reader-search-result-excerpt,
 .omni-book-reader-highlight-text {
   display: -webkit-box;
   overflow: hidden;
@@ -273,6 +264,13 @@
   font-size: var(--font-ui-smaller);
   line-height: 1.45;
   -webkit-box-orient: vertical;
+}
+
+.omni-book-reader-search-result-excerpt {
+  -webkit-line-clamp: 3;
+}
+
+.omni-book-reader-highlight-text {
   -webkit-line-clamp: 4;
 }
 

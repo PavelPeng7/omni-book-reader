@@ -1,6 +1,6 @@
 # Highlight List Readability
 
-Status: Active
+Status: Complete
 Issue: https://github.com/PavelPeng7/omni-book-reader/issues/7
 
 ## Scope
@@ -37,3 +37,5 @@ Extend the existing reader-sidebar CSS contract test. It observes the stable ren
 - 2026-09-19: `npm test` passed (21 test files, 68 tests; 1 existing fixture skipped).
 - 2026-09-19: `npm run build` and `npm run validate:release` passed; release 0.9.5 artifacts validated.
 - 2026-09-19: `npm run verify:quick` and `npm run verify:full` could not spawn their nested npm child process under the current Windows Node.js 24.14.1 runtime (`spawn EINVAL`). Their component gates were run directly as recorded above.
+- 2026-09-19: Two-axis review against `bc73a5a...5109a06` found duplicated clamp declarations and a DOM-level interaction coverage gap. The declarations were consolidated; the existing highest stable sidebar CSS contract seam remains the regression test because the current test harness cannot instantiate the Reader view without broad unrelated test infrastructure.
+- 2026-09-19: Final focused test, lint, type-check, full test suite, production build, and release validation passed (21 test files and 68 tests; 1 existing fixture skipped).
