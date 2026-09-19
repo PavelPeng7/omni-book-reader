@@ -300,14 +300,21 @@ class HighlightActionsModal extends Modal {
 }
 
 class FootnotePreviewModal extends Modal {
+  private href: string | null = null;
+  private navigateButton: HTMLButtonElement | null = null;
+
   constructor(
     app: ReaderPluginHost["app"],
     private readonly preview: FoliateViewElement,
-    private readonly href: string,
     private readonly language: InterfaceLanguage,
     private readonly onNavigate: (href: string) => Promise<void>,
   ) {
     super(app);
+  }
+
+  setHref(href: string): void {
+    this.href = href;
+    if (this.navigateButton) this.navigateButton.disabled = false;
   }
 
   onOpen(): void {
@@ -319,13 +326,16 @@ class FootnotePreviewModal extends Modal {
     const actions = this.contentEl.createDiv({ cls: "omni-book-reader-modal-actions" });
     const close = actions.createEl("button", { text: t("关闭", "Close") });
     const navigate = actions.createEl("button", { cls: "mod-cta", text: t("跳转到正文位置", "Go to text") });
+    navigate.disabled = !this.href;
+    this.navigateButton = navigate;
     close.addEventListener("click", () => this.close());
     navigate.addEventListener("click", () => {
-      void this.onNavigate(this.href).then(() => this.close());
+      if (this.href) void this.onNavigate(this.href).then(() => this.close());
     });
   }
 
   onClose(): void {
+    this.navigateButton = null;
     try { this.preview.close(); } catch { /* Preview may not have completed loading. */ }
     this.preview.remove();
     this.contentEl.empty();
@@ -1236,8 +1246,10 @@ export class OmniBookReaderView extends FileView {
 
   private async ensureFoliateRuntimeCompatibility(): Promise<void> {
     installBlobUrlRegistry();
-    installDesktopFoliateIframeSandboxPatch(Platform.isMobile);
-    installFoliateBlobIframePatch(Platform.isMobile);
+    // The Blob-to-srcdoc workaround is only needed in a mobile app WebView,
+    // not a desktop window using a mobile-sized layout.
+    installDesktopFoliateIframeSandboxPatch(Platform.isMobileApp);
+    installFoliateBlobIframePatch(Platform.isMobileApp);
     await ensureFoliateViewModule();
   }
 
@@ -1278,6 +1290,7 @@ export class OmniBookReaderView extends FileView {
 
   private attachReaderEvents(reader: FoliateViewElement): void {
     const footnotes = new FootnoteHandler();
+    const pendingFootnoteModals = new Map<FoliateViewElement, FootnotePreviewModal>();
     const onRelocate = (event: Event): void => this.onRelocate((event as CustomEvent<FoliateLocation>).detail);
     const onLoad = (event: Event): void => {
       const detail = (event as CustomEvent<{ doc: Document; index: number }>).detail;
@@ -1322,14 +1335,25 @@ export class OmniBookReaderView extends FileView {
     };
     const onLink = (event: Event): void => {
       void Promise.resolve(footnotes.handle(reader.book, event)).catch((error) => {
+        for (const modal of pendingFootnoteModals.values()) modal.close();
+        pendingFootnoteModals.clear();
         console.warn("[Omni Book Reader] Could not preview footnote", error);
       });
     };
+    const onFootnoteBeforeRender = (event: Event): void => {
+      const { view } = (event as CustomEvent<{ view: FoliateViewElement }>).detail;
+      // Foliate loads the preview in an iframe. It must be connected before
+      // goTo(), otherwise the iframe can wait forever for its load event.
+      const modal = new FootnotePreviewModal(this.app, view, this.language(), async (href) => {
+        await reader.goTo(href);
+      });
+      pendingFootnoteModals.set(view, modal);
+      modal.open();
+    };
     const onFootnoteRender = (event: Event): void => {
       const detail = (event as CustomEvent<{ view: FoliateViewElement; href: string }>).detail;
-      new FootnotePreviewModal(this.app, detail.view, detail.href, this.language(), async (href) => {
-        await reader.goTo(href);
-      }).open();
+      pendingFootnoteModals.get(detail.view)?.setHref(detail.href);
+      pendingFootnoteModals.delete(detail.view);
     };
 
     reader.addEventListener("relocate", onRelocate);
@@ -1339,6 +1363,7 @@ export class OmniBookReaderView extends FileView {
     reader.addEventListener("show-annotation", onShowAnnotation);
     reader.addEventListener("external-link", onExternalLink);
     reader.addEventListener("link", onLink);
+    footnotes.addEventListener("before-render", onFootnoteBeforeRender);
     footnotes.addEventListener("render", onFootnoteRender);
     this.cleanupCallbacks.push(() => {
       reader.removeEventListener("relocate", onRelocate);
@@ -1348,7 +1373,10 @@ export class OmniBookReaderView extends FileView {
       reader.removeEventListener("show-annotation", onShowAnnotation);
       reader.removeEventListener("external-link", onExternalLink);
       reader.removeEventListener("link", onLink);
+      footnotes.removeEventListener("before-render", onFootnoteBeforeRender);
       footnotes.removeEventListener("render", onFootnoteRender);
+      for (const modal of pendingFootnoteModals.values()) modal.close();
+      pendingFootnoteModals.clear();
     });
   }
 
