@@ -306,6 +306,14 @@
   box-shadow: var(--pavel-botanical-shadow-sm, var(--shadow-s));
 }
 
+.omni-book-reader-saved-item.is-highlight .omni-book-reader-saved-content:hover,
+.omni-book-reader-saved-item.is-highlight .omni-book-reader-saved-content:focus-visible {
+  color: var(--pavel-botanical-forest, var(--text-normal));
+  background: color-mix(in srgb, #bdf3b5 62%, var(--pavel-botanical-paper-raised, var(--background-primary)));
+  border-color: color-mix(in srgb, #57ad59 62%, var(--pavel-botanical-sage, var(--interactive-accent)));
+  box-shadow: 0 5px 16px rgb(64 128 70 / 18%);
+}
+
 .omni-book-reader-toc-list .omni-book-reader-list-button {
   height: auto;
   max-height: none;
