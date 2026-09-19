@@ -33,6 +33,7 @@ describe("mobile reader sidebar layout", () => {
     const panel = declarations(".omni-book-reader-panel");
 
     expect(styles).toMatch(/\.omni-book-reader-highlight-text\s*\{[^}]*overflow-wrap:\s*anywhere;/);
+    expect(styles).toMatch(/\.omni-book-reader-highlight-text\s*\{[^}]*white-space:\s*pre-wrap;/);
     expect(styles).not.toMatch(/\.omni-book-reader-highlight-text\s*\{[^}]*-webkit-line-clamp/);
     expect(savedContent).toContain("min-width: 0");
     expect(panel).toContain("overflow-x: hidden");
