@@ -272,11 +272,14 @@
 
 .omni-book-reader-highlight-text {
   display: block;
+  height: auto;
+  max-height: none;
   overflow: visible;
   color: var(--pavel-botanical-forest, var(--text-normal));
   font-size: var(--font-ui-small);
   line-height: 1.65;
   white-space: pre-wrap;
+  -webkit-line-clamp: unset;
   overflow-wrap: anywhere;
 }
 
@@ -290,14 +293,33 @@
 .omni-book-reader-saved-item.is-highlight .omni-book-reader-saved-content {
   display: block;
   min-width: 0;
-  min-height: 88px;
+  height: auto;
+  min-height: 0;
+  max-height: none;
   margin: 0;
   padding: 14px;
   white-space: normal;
+  overflow: visible;
   background: var(--pavel-botanical-paper-raised, var(--background-primary));
   border: 1px solid var(--pavel-botanical-stone, var(--background-modifier-border));
   border-radius: 18px;
   box-shadow: var(--pavel-botanical-shadow-sm, var(--shadow-s));
+}
+
+.omni-book-reader-toc-list .omni-book-reader-list-button {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.omni-book-reader-toc-label {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .omni-book-reader-saved-item.is-highlight > button:not(.omni-book-reader-saved-content) {
