@@ -2509,8 +2509,6 @@ export class OmniBookReaderView extends FileView {
       const note = iconButton(row, "notebook-pen", highlight.note ? t("编辑标注与笔记", "Edit annotation and note") : t("编辑标注并添加笔记", "Edit annotation and add note"));
       note.toggleClass("is-active", Boolean(highlight.note));
       note.addEventListener("click", () => this.openHighlightActions(highlight));
-      const remove = iconButton(row, "trash-2", t("删除高亮", "Delete highlight"));
-      remove.addEventListener("click", () => void this.deleteHighlight(highlight));
       }
     }
   }

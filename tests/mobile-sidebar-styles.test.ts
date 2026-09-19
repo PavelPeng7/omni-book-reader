@@ -27,4 +27,14 @@ describe("mobile reader sidebar layout", () => {
     expect(nestedList).toContain("margin-left: 0");
     expect(nestedList).toContain("padding-left: 0");
   });
+
+  it("prioritizes 摘录 text without horizontal overflow", () => {
+    const highlightText = declarations(".omni-book-reader-highlight-text");
+    const savedContent = declarations(".omni-book-reader-saved-content");
+    const panel = declarations(".omni-book-reader-panel");
+
+    expect(highlightText).toContain("-webkit-line-clamp: 4");
+    expect(savedContent).toContain("min-width: 0");
+    expect(panel).toContain("overflow-x: hidden");
+  });
 });
