@@ -2910,3 +2910,15 @@ body.theme-dark .omni-book-reader-bookshelf {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* Keep the side accent stateful after the base highlight-style rules. */
+.omni-book-reader-saved-item.is-highlight {
+  border-left-color: var(--pavel-botanical-stone, var(--background-modifier-border));
+  border-inline-start-color: var(--pavel-botanical-stone, var(--background-modifier-border));
+}
+
+.omni-book-reader-saved-item.is-highlight:hover,
+.omni-book-reader-saved-item.is-highlight:focus-within {
+  border-left-color: #57ad59;
+  border-inline-start-color: #57ad59;
+}
