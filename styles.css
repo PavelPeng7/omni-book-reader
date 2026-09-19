@@ -322,6 +322,36 @@
   overflow-wrap: anywhere;
 }
 
+/* Traditional book contents: continuous hierarchy, not a stack of cards. */
+.omni-book-reader-toc-list {
+  padding-inline-start: 6px;
+}
+
+.omni-book-reader-toc-list li {
+  border-inline-start: 1px solid color-mix(in srgb, var(--pavel-botanical-stone, var(--background-modifier-border)) 72%, transparent);
+}
+
+.omni-book-reader-toc-list .omni-book-reader-list-button {
+  min-height: 32px;
+  margin: 0;
+  padding-block: 6px;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.omni-book-reader-toc-list .omni-book-reader-list-button:hover {
+  background: transparent;
+}
+
+.omni-book-reader-toc-list .omni-book-reader-list-button.is-current {
+  background: transparent;
+  box-shadow: inset 2px 0 0 var(--pavel-botanical-terracotta, var(--text-accent));
+}
+
+.omni-book-reader-toc-current-marker {
+  display: none !important;
+}
+
 .omni-book-reader-saved-item.is-highlight > button:not(.omni-book-reader-saved-content) {
   align-self: center;
   flex: 0 0 auto;
