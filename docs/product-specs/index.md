@@ -28,7 +28,7 @@ The [`README.md`](../../README.md) is the user-facing feature overview. When beh
 - Exports never overwrite user-authored text outside plugin-managed blocks.
 - Saved state is normalized so malformed or legacy data does not prevent the plugin from loading.
 - Reader settings preserve legibility, selection, zoom/reflow, keyboard access, and mobile use.
-- On mobile, a native or pending text selection owns navigation until it is saved or cancelled; selection-handle drags never turn paginated pages.
+- On mobile, a native or pending text selection owns navigation until it is saved or cancelled; selection-handle drags in any direction never turn paginated pages or repeat page turns, clicking outside the selection cancels it, and desktop mouse edge-assisted selection remains available within a chapter.
 - Interface changes remain coherent with the Botanical / Organic Serif system in [`../../AGENTS.md`](../../AGENTS.md).
 - Production releases contain a non-empty `main.js`, `manifest.json`, and `styles.css` with consistent versions.
 

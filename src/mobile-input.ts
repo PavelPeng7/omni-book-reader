@@ -88,6 +88,20 @@ export function isTextSelectionGesture(
   return startedWithSelection || selectingText || hasCurrentSelection;
 }
 
+export function shouldConsumeTouchSelectionMove(
+  selectionGestureActive: boolean,
+  hasCurrentSelection: boolean,
+): boolean {
+  return selectionGestureActive || hasCurrentSelection;
+}
+
+export function shouldDismissSelectionOnClick(
+  hasPendingSelection: boolean,
+  clickedInsideSelection: boolean,
+): boolean {
+  return hasPendingSelection && !clickedInsideSelection;
+}
+
 export function selectionEdgePageTurnDirection(
   clientX: number,
   viewportWidth: number,

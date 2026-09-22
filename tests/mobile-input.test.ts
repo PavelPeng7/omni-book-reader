@@ -7,6 +7,8 @@ import {
   pageTurnCrossesSection,
   shouldSuppressTouchPageTurn,
   shouldBlockPageTurnForSelection,
+  shouldConsumeTouchSelectionMove,
+  shouldDismissSelectionOnClick,
   selectionEdgePageTurnDirection,
   swipePageTurnDirection,
   tapPageTurnDirection,
@@ -127,6 +129,18 @@ describe("mobilePageTurnDirection", () => {
     expect(isTextSelectionGesture(false, true, false)).toBe(true);
     expect(isTextSelectionGesture(false, false, true)).toBe(true);
     expect(isTextSelectionGesture(false, false, false)).toBe(false);
+  });
+
+  it("keeps a touch selection gesture active after the range collapses", () => {
+    expect(shouldConsumeTouchSelectionMove(true, false)).toBe(true);
+    expect(shouldConsumeTouchSelectionMove(false, true)).toBe(true);
+    expect(shouldConsumeTouchSelectionMove(false, false)).toBe(false);
+  });
+
+  it("dismisses a pending selection only when the click is outside it", () => {
+    expect(shouldDismissSelectionOnClick(true, false)).toBe(true);
+    expect(shouldDismissSelectionOnClick(true, true)).toBe(false);
+    expect(shouldDismissSelectionOnClick(false, false)).toBe(false);
   });
 
   it("blocks page turns while selection state is active or settling", () => {

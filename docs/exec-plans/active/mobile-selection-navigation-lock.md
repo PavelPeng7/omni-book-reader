@@ -42,4 +42,6 @@ Prevent touch selection-handle drags from turning paginated pages on mobile whil
 - 2026-09-17: `npm run verify:full` could not start its nested npm command because both Node.js 24.14.1 and supported Node.js 20.20.2 raised `spawn EINVAL` when launching `npm.cmd` on this Windows environment; every component gate was run directly as recorded above.
 - 2026-09-17: two-axis review found ordinary button navigation and transient-collapse gaps; both were fixed, the policy matrix was expanded, and architecture documentation was synchronized.
 - 2026-09-17: follow-up review found a prolonged native-selection collapse could outlive the time guard while the finger remained down; an explicit touch-selection-gesture state now keeps the shared navigation lock active until touch end or cancellation.
-- Pending: Android and iOS manual selection-handle verification in Obsidian mobile.
+- 2026-09-20: follow-up reproduced a remaining gap where the native range collapsed during an upward selection-handle drag; the touchmove was not consumed and Foliate could replay it as one or more backward page turns. Mobile selection gestures now retain ownership through transient collapse and no longer schedule touch edge turns.
+- 2026-09-20: restored click-outside dismissal for pending selections; the click is consumed after clearing the native and pending selection so it cannot immediately become a page turn.
+- Pending: Android and iOS manual selection-handle verification in Obsidian mobile, including upward drags that previously caused repeated backward page turns.

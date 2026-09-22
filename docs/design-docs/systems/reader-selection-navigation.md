@@ -13,12 +13,13 @@ This makes selection/navigation bugs timing-sensitive. A check performed only af
 
 1. Native or pending text selection owns navigation input until selection state has settled.
 2. A selection gesture must not be reinterpreted as a tap, swipe, key, wheel, or hardware-button page turn.
-3. Touch selection-handle drags never turn pages. Mobile readers select cross-page content as separate highlights, which may be joined by the existing adjacent-highlight behavior.
+3. Touch selection-handle drags never turn pages. The entire touch gesture remains owned by selection even when the browser temporarily reports a collapsed range or the handle moves vertically; mobile readers select cross-page content as separate highlights, which may be joined by the existing adjacent-highlight behavior.
 4. Desktop mouse edge-assisted selection may move between pages inside one EPUB spine section, but must stop before crossing into another spine section. The current selection remains active so the user can save it before continuing in the next chapter.
 5. Navigation eligibility is decided before invoking `goLeft`, `goRight`, `prev`, `next`, or `goTo` when the required state is available.
 6. A post-navigation section check is a fallback for dependency/runtime uncertainty, not the primary guard.
 7. Physical left/right direction must be mapped through the publication's LTR/RTL reading direction before reasoning about previous/next sections.
 8. Normal navigation behavior remains unchanged when no selection state is active.
+9. A click outside the pending text selection dismisses the selection and consumes that click; clicking within the selection does not dismiss it.
 
 ## Current implementation boundary
 
@@ -61,7 +62,9 @@ For changes involving selection or navigation, cover the applicable rows:
 | Native selection active | All ordinary page-turn inputs are blocked |
 | Pending annotation selection | Navigation remains blocked even if the native range briefly collapses |
 | Selection settling guard | Synthetic click/touch follow-up does not navigate |
+| Pending selection, click outside selection | Pending selection is dismissed without turning the page |
 | Touch selection handle, any page | Holding or dragging at either viewport edge does not navigate |
+| Touch selection handle, vertical movement | Moving a handle toward the top or bottom does not invoke Foliate pagination or repeat page turns |
 | Mouse selection, interior page, LTR | Left/right edge assistance stays in the current section |
 | Mouse selection, first/last page, LTR | Boundary edge assistance does not call navigation |
 | Mouse selection, interior page, RTL | Physical directions map to the correct logical turn |

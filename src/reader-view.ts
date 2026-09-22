@@ -39,6 +39,8 @@ import {
   mobilePageTurnDirection,
   pageTurnCrossesSection,
   selectionEdgePageTurnDirection,
+  shouldConsumeTouchSelectionMove,
+  shouldDismissSelectionOnClick,
   shouldSuppressTouchPageTurn,
   swipePageTurnDirection,
   tapPageTurnDirection,
@@ -1479,15 +1481,27 @@ export class OmniBookReaderView extends FileView {
         return;
       }
       const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
-      if (selection && !selection.isCollapsed) {
+      const hasCurrentSelection = Boolean(selection && !selection.isCollapsed);
+      if (hasCurrentSelection) {
         selectingText = true;
         this.selectionTouchGestureActive = true;
         touchStartPoint = null;
         markSelectionInteraction();
-        const touch = event.touches.item(0);
-        if (touch) scheduleSelectionEdgeTurn(touch, "touch-selection-edge");
+      }
+
+      // Keep the whole mobile selection-handle gesture away from Foliate's
+      // touch paginator. The native range can collapse while a handle moves,
+      // so this guard must use the gesture state as well as the current range.
+      if (shouldConsumeTouchSelectionMove(
+        this.selectionTouchGestureActive || touchStartedWithSelection || selectingText,
+        hasCurrentSelection,
+      )) {
+        cancelSelectionEdgeTurn();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
         return;
       }
+
       cancelSelectionEdgeTurn();
       if (!touchStartPoint) return;
       if (Date.now() <= this.selectionPageTurnGuardUntil) return;
@@ -1618,6 +1632,16 @@ export class OmniBookReaderView extends FileView {
         return;
       }
       if (event.defaultPrevented || event.button !== 0 || event.detail === 0) return;
+      const clickedInsideSelection = Boolean(
+        target && this.pendingSelection?.selection.containsNode(target, true),
+      );
+      if (shouldDismissSelectionOnClick(Boolean(this.pendingSelection), clickedInsideSelection)) {
+        this.clearPendingSelection();
+        if (event.cancelable) event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
       if (this.openHighlightAtPoint(document, event.clientX, event.clientY)) {
         if (event.cancelable) event.preventDefault();
         event.stopPropagation();
