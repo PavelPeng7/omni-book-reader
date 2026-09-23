@@ -4,6 +4,16 @@ Record intentional compromises that have a concrete maintenance, reliability, se
 
 ## Open items
 
+### TD-2026-002: GitHub release-by-tag API omits uploaded assets
+
+- Status: Open
+- Area: GitHub release distribution
+- Introduced: 2026-09-23, `docs/exec-plans/active/release-1.0.0.md`
+- Impact: version-based release validators report missing `main.js` and `manifest.json` even though the Release ID and asset-list endpoints show all three files as uploaded
+- Reason accepted: rebuilding the release, reuploading an asset, republishing, and editing asset metadata did not make the release-by-tag response consistently list assets; this appears to require GitHub-side correction
+- Exit criteria: `GET /repos/PavelPeng7/omni-book-reader/releases/tags/1.0.0` consistently lists `main.js`, `manifest.json`, and `styles.css`, and the release workflow verification passes
+- Owner/trigger: revisit after GitHub Support or a GitHub API correction
+
 ### TD-2026-001: Native selection handles lack integration coverage
 
 - Status: Open
