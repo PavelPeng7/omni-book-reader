@@ -44,3 +44,26 @@ jobs:
             dist/main.js
             dist/manifest.json
             dist/styles.css
+
+      - name: Verify published release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          expected='main.js,manifest.json,styles.css'
+          stable=0
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            assets=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}" --jq '[.assets[].name] | sort | join(",")')
+            if [ "$assets" = "$expected" ]; then
+              stable=$((stable + 1))
+              if [ "$stable" -eq 5 ]; then
+                echo "Release assets are visible by tag in five consecutive checks."
+                exit 0
+              fi
+            else
+              stable=0
+            fi
+            echo "Release asset check $attempt: found [$assets], stable checks $stable/5"
+            if [ "$attempt" -lt 12 ]; then sleep 10; fi
+          done
+          echo "GitHub did not consistently expose the expected release assets by tag."
+          exit 1

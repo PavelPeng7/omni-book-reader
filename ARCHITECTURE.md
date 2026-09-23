@@ -86,6 +86,7 @@ Vitest runs focused unit and DOM tests under `tests/`. ESLint covers source and 
 - `npm run release:check`: run the release pipeline and package the three artifacts into `dist/`.
 
 The GitHub release workflow uses Node.js 20 and `npm ci`. Local verification should use a supported Node version declared in `package.json`.
+After uploading release files, the workflow also checks that GitHub's release-by-tag API consistently exposes `main.js`, `manifest.json`, and `styles.css`. This remote check catches releases whose assets exist by release ID but appear missing to version-based consumers.
 
 ## Change rules
 
