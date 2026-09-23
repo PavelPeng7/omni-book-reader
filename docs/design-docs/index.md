@@ -4,6 +4,8 @@ Design documents explain how and why a change is implemented. Product behavior b
 
 ## Current design sources
 
+- [`ux-discovery.md`](ux-discovery.md): mobile annotation UX interview, confirmed Android selection behavior, and remaining candidate improvements.
+
 - [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md): runtime boundaries, core flows, invariants, build, and release model.
 - [`../../AGENTS.md`](../../AGENTS.md): repository workflow and user-interface design constraints.
 - [`systems/reader-selection-navigation.md`](systems/reader-selection-navigation.md): selection ownership, navigation arbitration, chapter boundaries, directionality, and regression coverage.

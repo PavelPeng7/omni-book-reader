@@ -34,6 +34,7 @@ Record intentional compromises that have a concrete maintenance, reliability, se
 - Reason accepted: the current Vitest/jsdom environment does not provide native selection handles or an Obsidian mobile runtime
 - Exit criteria: an integration or device test asserts that mobile selection-handle drags never navigate, while desktop mouse edge-assisted selection still navigates only within valid LTR/RTL section boundaries
 - Owner/trigger: revisit when adding browser-driven Obsidian tests, upgrading Foliate, or changing selection/touch event handling
+- 2026-09-23 coverage improvement: event-level tests now reproduce Foliate's touch-pointer selectionchange auto-navigation using the installed dependency handlers and the reader's document wiring. Native Android handle timing and rendering still require device verification; this item remains open.
 
 ## Entry template
 

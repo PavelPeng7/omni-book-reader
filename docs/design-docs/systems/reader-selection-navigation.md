@@ -30,6 +30,16 @@ This makes selection/navigation bugs timing-sensitive. A check performed only af
 
 Keep timing-free decisions in `mobile-input.ts`. Do not add more event-policy arithmetic directly to the reader view when it can be expressed as a small pure function.
 
+## Android selectionchange arbitration (2026-09-23)
+
+Foliate 1.0.1 sets its internal pointer-selection flag for every `pointerdown`, including touch. Its document `selectionchange` listener schedules a debounced `prev()`/`next()` after 700 ms when the selection extends beyond the visible range. This path neither requires proximity to a horizontal edge nor calls the plugin's page-turn policy, and its queued callback can run after pointer release.
+
+For mobile reflowable paginated documents, the plugin handles `selectionchange` in capture phase: it updates its own selection guard and schedules annotation capture, then stops immediate propagation before Foliate's bubble listener can schedule navigation. It does not cancel the native selection default action. The guard is scoped to each attached publication document, consults current layout settings, and is removed on cleanup. Desktop, fixed-layout, and scrolled documents retain their existing propagation.
+
+Plugin mouse edge assistance now requires a literal `mouse` pointer on desktop with no active touch-selection gesture. Mobile mouse-compatible events, pen input, and unknown pointer types cannot start that path.
+
+`tests/reader-selection-events.test.ts` executes the installed Foliate selection-listener code with its private visible-range field exposed to a DOM fixture, alongside the real reader document handlers. It covers forward/backward range extension, held/released gestures, collapsed touch moves, desktop edge assistance, ordinary swipes, and cleanup. This proves event-path arbitration; jsdom does not prove native Android handle behavior.
+
 ## Chapter-boundary preflight
 
 For the pinned `foliate-js` paginator, `page` and `pages` expose the current rendered page and total pages. In paginated reflowable content, page `1` is the first content page and `pages - 2` is the last content page. Before a desktop mouse edge-assisted selection turn:

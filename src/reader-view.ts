@@ -1448,8 +1448,9 @@ export class OmniBookReaderView extends FileView {
       if (event.pointerType !== "touch") capture();
     };
     const pointerMove = (event: PointerEvent): void => {
-      if (event.pointerType === "touch" || event.buttons !== 1 || !this.hasNonCollapsedTextSelection(document)) {
-        if (event.pointerType !== "touch") cancelSelectionEdgeTurn();
+      if (Platform.isMobile || event.pointerType !== "mouse" || this.selectionTouchGestureActive
+        || event.buttons !== 1 || !this.hasNonCollapsedTextSelection(document)) {
+        cancelSelectionEdgeTurn();
         return;
       }
       markSelectionInteraction();
@@ -1606,9 +1607,16 @@ export class OmniBookReaderView extends FileView {
       markSelectionInteraction(850);
       capture();
     };
-    const selectionChange = (): void => {
+    const selectionChange = (event: Event): void => {
       if (this.hasActiveReaderSelection(document)) markSelectionInteraction(850);
       capture();
+      // Foliate treats touch pointerdown as mouse selection and schedules its
+      // own prev/next from selectionchange, bypassing our navigation lock.
+      // Capture phase runs before its document listener, even when registered
+      // later. Do not preventDefault: Android must still adjust native handles.
+      if (Platform.isMobile && !this.fixedLayout && this.plugin.getReaderSettings().layout === "paginated") {
+        event.stopImmediatePropagation();
+      }
     };
     const keyDown = (event: KeyboardEvent): void => {
       this.noteReadingActivity();
@@ -1662,7 +1670,7 @@ export class OmniBookReaderView extends FileView {
     document.addEventListener("touchend", touchEnd, { capture: true, passive: false });
     document.addEventListener("touchcancel", touchCancel, true);
     document.addEventListener("selectstart", selectStart, true);
-    document.addEventListener("selectionchange", selectionChange);
+    document.addEventListener("selectionchange", selectionChange, true);
     document.addEventListener("keydown", keyDown, true);
     document.addEventListener("keyup", keyUp);
     document.addEventListener("wheel", wheel, { passive: false });
@@ -1682,7 +1690,7 @@ export class OmniBookReaderView extends FileView {
       document.removeEventListener("touchend", touchEnd, true);
       document.removeEventListener("touchcancel", touchCancel, true);
       document.removeEventListener("selectstart", selectStart, true);
-      document.removeEventListener("selectionchange", selectionChange);
+      document.removeEventListener("selectionchange", selectionChange, true);
       document.removeEventListener("keydown", keyDown, true);
       document.removeEventListener("keyup", keyUp);
       document.removeEventListener("wheel", wheel);

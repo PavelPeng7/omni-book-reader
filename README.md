@@ -10,6 +10,8 @@ Click a highlight in the book, or use its note button in the reader sidebar, to 
 
 Annotations support highlight, underline, strikethrough, and squiggly styles, four colors, notes, and tags. The sidebar can combine tag, chapter, color, and note-status filters, then sort by creation time or chapter. Exported entries include an Obsidian CFI link that reopens the source EPUB at the exact location.
 
+On mobile, dragging text-selection handles keeps the current page in place, including vertical drags. For a passage spanning pages, highlight each page separately; page turns resume after saving or cancelling the selection.
+
 Additional reading tools:
 
 - Footnote and endnote links open an in-reader preview with an optional jump to the referenced position.

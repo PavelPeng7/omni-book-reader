@@ -4,6 +4,9 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 
 ## Current state
 
+- Android selection fix: [`../completed/android-selection-paginator.md`](../completed/android-selection-paginator.md), event-level regression and fix complete; quick/full verification passed (82 passed, 1 skipped). Native device validation remains under TD-2026-001.
+- Release 1.0.2: [`release-1.0.2.md`](release-1.0.2.md), preparing source tag and release assets.
+
 - Harness status: established.
 - Product specification: baseline documented in `docs/product-specs/index.md`.
 - Architecture: current runtime, persistence, export, safety, and release boundaries documented in `ARCHITECTURE.md`.
