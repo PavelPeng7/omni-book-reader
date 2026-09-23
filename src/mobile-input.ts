@@ -84,8 +84,9 @@ export function isTextSelectionGesture(
   startedWithSelection: boolean,
   selectingText: boolean,
   hasCurrentSelection: boolean,
+  selectionGestureActive = false,
 ): boolean {
-  return startedWithSelection || selectingText || hasCurrentSelection;
+  return startedWithSelection || selectingText || hasCurrentSelection || selectionGestureActive;
 }
 
 export function shouldConsumeTouchSelectionMove(

@@ -129,6 +129,7 @@ describe("mobilePageTurnDirection", () => {
     expect(isTextSelectionGesture(false, true, false)).toBe(true);
     expect(isTextSelectionGesture(false, false, true)).toBe(true);
     expect(isTextSelectionGesture(false, false, false)).toBe(false);
+    expect(isTextSelectionGesture(false, false, false, true)).toBe(true);
   });
 
   it("keeps a touch selection gesture active after the range collapses", () => {

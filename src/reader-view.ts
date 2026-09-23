@@ -1530,6 +1530,7 @@ export class OmniBookReaderView extends FileView {
         touchStartedWithSelection,
         selectingText,
         Boolean(selection && !selection.isCollapsed),
+        this.selectionTouchGestureActive || this.shouldBlockPageTurnForSelection(document),
       );
       touchStartedWithSelection = false;
       selectingText = false;
