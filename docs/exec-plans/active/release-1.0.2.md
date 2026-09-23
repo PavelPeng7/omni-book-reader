@@ -24,3 +24,4 @@ Publish the Android selection navigation repair as 1.0.2. The source tag contain
 
 - 2026-09-23: selected release files and synchronized `manifest.json`, `package.json`, `package-lock.json`, and `versions.json` for 1.0.2. README describes mobile selection behavior.
 - 2026-09-23: `npm run verify:full` passed in the working tree: lint, type-check, 82 tests passed and 1 existing fixture test skipped, production bundle, and release asset validation.
+- 2026-09-23: clean detached worktree at commit `1356c2a` passed `npm ci` and `npm run release:check`; 82 tests passed, 1 existing fixture test skipped. `dist/` contained non-empty `main.js` (372637 bytes), `manifest.json` (319 bytes), and `styles.css` (86981 bytes). SHA-256: `1f32b6ccab4f5e6ee6fb16bf1ef9f82cdc011096d475b97e882e21c8f47f7764`, `2052f2a60b038ace7d51ffce2bfba9ed062fa1bcdaa361a6e90187e33c035d9a`, `1fb87ed1f30b51d8261e1b1ed4c2254d7eaa6c2a28426386aa528c7b8d442ae0`, respectively.
