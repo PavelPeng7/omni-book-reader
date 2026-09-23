@@ -7,6 +7,7 @@ Design documents explain how and why a change is implemented. Product behavior b
 - [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md): runtime boundaries, core flows, invariants, build, and release model.
 - [`../../AGENTS.md`](../../AGENTS.md): repository workflow and user-interface design constraints.
 - [`systems/reader-selection-navigation.md`](systems/reader-selection-navigation.md): selection ownership, navigation arbitration, chapter boundaries, directionality, and regression coverage.
+- [`systems/release-artifacts.md`](systems/release-artifacts.md): tagged source, generated bundle, attached assets, and remote verification.
 - [`../obsidian-review-versions-json.md`](../obsidian-review-versions-json.md): investigation notes for the Obsidian review requirement around `versions.json`.
 
 ## When a design document is required

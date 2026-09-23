@@ -79,6 +79,8 @@ TypeScript under `src/` is bundled by `esbuild.config.mjs` into `main.js`. Obsid
 - `manifest.json`
 - `styles.css`
 
+`main.js` is generated locally and ignored by Git. A tagged source commit contains the build inputs; the release workflow creates `main.js` and attaches it directly to the GitHub Release with `manifest.json` and `styles.css`. See [`docs/design-docs/systems/release-artifacts.md`](docs/design-docs/systems/release-artifacts.md).
+
 Vitest runs focused unit and DOM tests under `tests/`. ESLint covers source and package metadata, and TypeScript runs without emitting files.
 
 - `npm run verify:quick`: lint, type-check, and run tests.

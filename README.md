@@ -50,6 +50,7 @@ npm run release:check
 ```
 
 This creates `dist/main.js`, `dist/manifest.json`, and `dist/styles.css` for manual installation or a GitHub Release.
+The generated `main.js` is not committed; GitHub Actions builds it and attaches all three files directly to the Release.
 
 ## Release process
 

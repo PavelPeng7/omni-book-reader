@@ -1,6 +1,6 @@
 # Release 1.0.0
 
-Status: Published, remote asset verification failed
+Status: Complete
 
 ## Scope
 
@@ -25,4 +25,5 @@ Publish the current reader build as 1.0.0 and verify that GitHub exposes all thr
 - 2026-09-23: Commit `ac4196c` and tag `1.0.0` were pushed. GitHub started two runs for the same tag; the later duplicate was cancelled to avoid competing uploads.
 - 2026-09-23: The retained [release workflow](https://github.com/PavelPeng7/omni-book-reader/actions/runs/35837582551) uploaded all three assets, but its release-by-tag check returned an empty asset list on all 12 attempts and failed.
 - 2026-09-23: Release ID `394449016` lists `main.js` (372479 bytes), `manifest.json` (310 bytes), and `styles.css` (84057 bytes) as uploaded. The public release-by-tag REST endpoint still reports `assets: []`; editing asset metadata exposed them only transiently.
-- Pending: resolve the inconsistent GitHub API result and obtain a stable release-by-tag check before marking 1.0.0 complete.
+- 2026-09-23: The unauthenticated release-by-tag API returned `main.js`, `manifest.json`, and `styles.css` in five checks spaced 10 seconds apart. The release-by-ID API also listed all three as uploaded. `gh release download` retrieved all three files; their sizes and SHA-256 hashes matched GitHub's release asset records. The earlier workflow failure remains in its historical run log, but the published release now satisfies the asset checks.
+- 2026-09-23: `npm run lint`, `npm run check`, `npm test`, `npm run build`, and `npm run validate:release` passed locally (71 tests passed, one skipped). The `verify:quick` and `verify:full` wrappers could not start on this Windows Node 24.14.1 installation because `spawn("npm.cmd")` returned `EINVAL`; their constituent checks were run directly.

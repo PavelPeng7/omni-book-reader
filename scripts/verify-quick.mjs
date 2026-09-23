@@ -1,6 +1,9 @@
 import { spawn } from "node:child_process";
 
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const npmCli = process.platform === "win32" ? process.env.npm_execpath : undefined;
+if (process.platform === "win32" && !npmCli) {
+  throw new Error("Run this verification through npm so npm_execpath is available.");
+}
 const steps = [
   ["Lint", ["run", "lint"]],
   ["Type-check", ["run", "check"]],
@@ -10,7 +13,11 @@ const steps = [
 for (const [label, args] of steps) {
   console.log(`\n[verify:quick] ${label}`);
   const exitCode = await new Promise((resolve, reject) => {
-    const child = spawn(npm, args, { stdio: "inherit" });
+    const child = spawn(
+      npmCli ? process.execPath : "npm",
+      npmCli ? [npmCli, ...args] : args,
+      { stdio: "inherit" },
+    );
     child.once("error", reject);
     child.once("exit", (code, signal) => {
       if (signal) reject(new Error(`${label} terminated by signal ${signal}.`));
