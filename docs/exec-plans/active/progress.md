@@ -5,14 +5,13 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 ## Current state
 
 - Android selection fix: [`../completed/android-selection-paginator.md`](../completed/android-selection-paginator.md), event-level regression and fix complete; quick/full verification passed (82 passed, 1 skipped). Native device validation remains under TD-2026-001.
-- Release 1.0.2: [`release-1.0.2.md`](release-1.0.2.md), preparing source tag and release assets.
 
 - Harness status: established.
 - Product specification: baseline documented in `docs/product-specs/index.md`.
 - Architecture: current runtime, persistence, export, safety, and release boundaries documented in `ARCHITECTURE.md`.
 - Verification: `npm run verify:quick` and `npm run verify:full` are the standard gates.
 - Active feature plan: [`mobile-selection-navigation-lock.md`](mobile-selection-navigation-lock.md) for GitHub Issue #3.
-- Latest completed release plan: [`../completed/release-1.0.1.md`](../completed/release-1.0.1.md).
+- Latest completed release plan: [`../completed/release-1.0.2.md`](../completed/release-1.0.2.md).
 - Latest completed feature plan: [`../completed/highlight-list-readability.md`](../completed/highlight-list-readability.md) for GitHub Issue #7.
 
 ## Workflow
@@ -28,5 +27,5 @@ For each multi-step change:
 ## Last harness verification
 
 - Date: 2026-09-23
-- Commands: `npm ci`, `npm run verify:full`, and `npm run release:check` in a clean worktree at release commit `eca501b`
-- Result: passed (22 test files and 71 tests passed; 1 fixture test skipped; production build, release packaging, and remote asset validation passed).
+- Commands: `npm run verify:full` in the working tree; `npm ci` and `npm run release:check` in a clean worktree at commit `1356c2a`; GitHub Actions run 35875329925 at tag `1.0.2`
+- Result: passed (23 test files and 82 tests passed; 1 fixture test skipped; production build, release packaging, and public asset validation passed).
