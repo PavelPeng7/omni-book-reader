@@ -9,8 +9,7 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 - Architecture: current runtime, persistence, export, safety, and release boundaries documented in `ARCHITECTURE.md`.
 - Verification: `npm run verify:quick` and `npm run verify:full` are the standard gates.
 - Active feature plan: [`mobile-selection-navigation-lock.md`](mobile-selection-navigation-lock.md) for GitHub Issue #3.
-- Active release plan: [`release-1.0.1.md`](release-1.0.1.md).
-- Latest completed release plan: [`../completed/release-1.0.0.md`](../completed/release-1.0.0.md).
+- Latest completed release plan: [`../completed/release-1.0.1.md`](../completed/release-1.0.1.md).
 - Latest completed feature plan: [`../completed/highlight-list-readability.md`](../completed/highlight-list-readability.md) for GitHub Issue #7.
 
 ## Workflow
@@ -26,5 +25,5 @@ For each multi-step change:
 ## Last harness verification
 
 - Date: 2026-09-23
-- Commands: `npm run lint`, `npm run check`, `npm test`, `npm run build`, and `npm run validate:release`
-- Result: passed (22 test files and 71 tests passed; 1 fixture test skipped; production build and release asset validation passed). The `verify:quick` and `verify:full` wrappers stopped before their first step with `spawn EINVAL` on Windows Node 24.14.1.
+- Commands: `npm ci`, `npm run verify:full`, and `npm run release:check` in a clean worktree at release commit `eca501b`
+- Result: passed (22 test files and 71 tests passed; 1 fixture test skipped; production build, release packaging, and remote asset validation passed).

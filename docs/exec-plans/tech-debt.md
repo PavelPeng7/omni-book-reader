@@ -6,13 +6,14 @@ Record intentional compromises that have a concrete maintenance, reliability, se
 
 ### TD-2026-003: Verification wrappers fail on Windows Node 24
 
-- Status: Open
+- Status: Resolved (2026-09-23)
 - Area: local verification scripts
 - Introduced: 2026-09-23, `docs/exec-plans/completed/release-1.0.0.md`
 - Impact: `npm run verify:quick` and `npm run verify:full` stop before running any checks because Node 24 reports `spawn EINVAL` for `npm.cmd`; contributors must run the underlying commands directly on this setup
 - Reason accepted: this does not affect the Node 20 GitHub release workflow or the published release assets; the underlying lint, type-check, test, build, and release validation commands passed locally
 - Exit criteria: both wrapper commands run successfully on supported Windows Node versions
 - Owner/trigger: address when maintaining the verification scripts
+- Resolution: both wrappers now launch npm's CLI through `process.execPath` on Windows; `verify:quick` and `verify:full` passed on Node 24.14.1 for release 1.0.1.
 
 ### TD-2026-002: GitHub release-by-tag API omits uploaded assets
 
