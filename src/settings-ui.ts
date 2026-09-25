@@ -51,6 +51,13 @@ function renderSettings(
       .onChange((tapToTurnPages) => host.updateReaderSettings({ tapToTurnPages })));
 
   new Setting(container)
+    .setName(t("选中时禁止翻页", "Prevent page turns while selecting"))
+    .setDesc(t("选中文字或拖动选区游标时保持当前页。关闭后允许阅读器按原有方式翻页。", "Keep the current page while selecting text or dragging selection handles. Turn this off to allow the reader's usual page turns."))
+    .addToggle((toggle) => toggle
+      .setValue(get().preventPageTurnsWhileSelecting)
+      .onChange((preventPageTurnsWhileSelecting) => host.updateReaderSettings({ preventPageTurnsWhileSelecting })));
+
+  new Setting(container)
     .setName(t("阅读工具栏自动弱化", "Auto-hide reader chrome"))
     .setDesc(t("翻页或滚动后弱化工具栏；移动鼠标、触摸正文中央或键盘聚焦时恢复。", "Fade reader controls after navigation and reveal them on pointer, touch, or keyboard activity."))
     .addToggle((toggle) => toggle
@@ -287,6 +294,11 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
             },
           },
           {
+            name: t("选中时禁止翻页", "Prevent page turns while selecting"),
+            desc: t("选中文字或拖动选区游标时保持当前页。关闭后允许阅读器按原有方式翻页。", "Keep the current page while selecting text or dragging selection handles. Turn this off to allow the reader's usual page turns."),
+            control: { type: "toggle", key: "preventPageTurnsWhileSelecting" },
+          },
+          {
             name: t("阅读工具栏自动弱化", "Auto-hide reader chrome"),
             desc: t("翻页或滚动后弱化工具栏，交互时自动恢复。", "Fade reader controls after navigation and reveal them during interaction."),
             control: { type: "toggle", key: "readerChromeAutoHide" },
@@ -461,6 +473,7 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
       case "theme": return settings.theme;
       case "layout": return settings.layout;
       case "tapToTurnPages": return settings.tapToTurnPages;
+      case "preventPageTurnsWhileSelecting": return settings.preventPageTurnsWhileSelecting;
       case "readerChromeAutoHide": return settings.readerChromeAutoHide;
       case "interfaceDensity": return settings.interfaceDensity;
       case "defaultHighlightColor": return settings.defaultHighlightColor;
@@ -496,6 +509,9 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
         return;
       case "tapToTurnPages":
         if (typeof value === "boolean") this.host.updateReaderSettings({ tapToTurnPages: value });
+        return;
+      case "preventPageTurnsWhileSelecting":
+        if (typeof value === "boolean") this.host.updateReaderSettings({ preventPageTurnsWhileSelecting: value });
         return;
       case "readerChromeAutoHide":
         if (typeof value === "boolean") this.host.updateReaderSettings({ readerChromeAutoHide: value });

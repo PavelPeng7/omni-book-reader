@@ -37,8 +37,6 @@ import {
   isPageTurnTap,
   isTextSelectionGesture,
   mobilePageTurnDirection,
-  pageTurnCrossesSection,
-  selectionEdgePageTurnDirection,
   shouldConsumeTouchSelectionMove,
   shouldDismissSelectionOnClick,
   shouldSuppressTouchPageTurn,
@@ -500,7 +498,6 @@ export class OmniBookReaderView extends FileView {
   private wheelDelta = 0;
   private lastWheelTurnAt = 0;
   private selectionPageTurnGuardUntil = 0;
-  private selectionPageTurnRunning = false;
   private selectionNavigationNoticeShown = false;
   private selectionTouchGestureActive = false;
   private bookTitle = "Omni Book Reader";
@@ -1391,15 +1388,13 @@ export class OmniBookReaderView extends FileView {
     this.attachedDocuments.add(document);
     let selectionFrame: number | null = null;
     let selectionRetry: number | null = null;
-    let selectionEdgeTurnTimer: number | null = null;
-    let selectionEdgeTurnDirection: "previous" | "next" | null = null;
-    let selectionEdgeTurnSource: SelectionPageTurnSource | null = null;
     let touchStartPoint: { x: number; y: number; time: number; target: Element | null } | null = null;
     let selectionTouchStartPoint: { x: number; y: number; time: number } | null = null;
     let touchInProgress = false;
     let selectingText = false;
     let touchStartedWithSelection = false;
     let suppressClickUntil = 0;
+    const preventSelectionPageTurns = (): boolean => this.plugin.getReaderSettings().preventPageTurnsWhileSelecting;
     const markSelectionInteraction = (duration = 900): void => {
       this.selectionPageTurnGuardUntil = Math.max(this.selectionPageTurnGuardUntil, Date.now() + duration);
     };
@@ -1410,56 +1405,14 @@ export class OmniBookReaderView extends FileView {
         this.captureSelection(document, sectionIndex);
       });
     };
-    const cancelSelectionEdgeTurn = (): void => {
-      if (selectionEdgeTurnTimer !== null) window.clearTimeout(selectionEdgeTurnTimer);
-      selectionEdgeTurnTimer = null;
-      selectionEdgeTurnDirection = null;
-      selectionEdgeTurnSource = null;
-    };
-    const scheduleSelectionEdgeTurn = (
-      point: { clientX: number },
-      source: "touch-selection-edge" | "mouse-selection-edge",
-    ): void => {
-      const settings = this.plugin.getReaderSettings();
-      const width = document.documentElement.clientWidth || document.body?.clientWidth || 0;
-      const direction = !this.fixedLayout && settings.layout === "paginated"
-        ? selectionEdgePageTurnDirection(point.clientX, width)
-        : null;
-      if (!direction) {
-        cancelSelectionEdgeTurn();
-        return;
-      }
-      if (selectionEdgeTurnDirection === direction && selectionEdgeTurnSource === source
-        && selectionEdgeTurnTimer !== null) return;
-      cancelSelectionEdgeTurn();
-      selectionEdgeTurnDirection = direction;
-      selectionEdgeTurnSource = source;
-      selectionEdgeTurnTimer = window.setTimeout(() => {
-        selectionEdgeTurnTimer = null;
-        selectionEdgeTurnDirection = null;
-        selectionEdgeTurnSource = null;
-        if (this.blockPageTurnForSelection(source, document)) return;
-        void this.turnPageWhileSelecting(direction);
-      }, 500);
-    };
     const pointerUp = (event: PointerEvent): void => {
-      cancelSelectionEdgeTurn();
       this.noteReadingActivity();
       if (event.pointerType !== "touch") capture();
-    };
-    const pointerMove = (event: PointerEvent): void => {
-      if (Platform.isMobile || event.pointerType !== "mouse" || this.selectionTouchGestureActive
-        || event.buttons !== 1 || !this.hasNonCollapsedTextSelection(document)) {
-        cancelSelectionEdgeTurn();
-        return;
-      }
-      markSelectionInteraction();
-      scheduleSelectionEdgeTurn(event, "mouse-selection-edge");
     };
     const touchStart = (event: TouchEvent): void => {
       touchInProgress = true;
       selectingText = false;
-      touchStartedWithSelection = this.shouldBlockPageTurnForSelection(document);
+      touchStartedWithSelection = preventSelectionPageTurns() && this.shouldBlockPageTurnForSelection(document);
       this.selectionTouchGestureActive = touchStartedWithSelection;
       if (touchStartedWithSelection) markSelectionInteraction();
       const touch = event.changedTouches.item(0);
@@ -1478,7 +1431,6 @@ export class OmniBookReaderView extends FileView {
     };
     const touchMove = (event: TouchEvent): void => {
       if (event.touches.length !== 1) {
-        cancelSelectionEdgeTurn();
         return;
       }
       const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
@@ -1486,24 +1438,23 @@ export class OmniBookReaderView extends FileView {
       if (hasCurrentSelection) {
         selectingText = true;
         this.selectionTouchGestureActive = true;
-        touchStartPoint = null;
+        if (preventSelectionPageTurns()) touchStartPoint = null;
         markSelectionInteraction();
       }
 
       // Keep the whole mobile selection-handle gesture away from Foliate's
       // touch paginator. The native range can collapse while a handle moves,
       // so this guard must use the gesture state as well as the current range.
-      if (shouldConsumeTouchSelectionMove(
+      if (preventSelectionPageTurns() && shouldConsumeTouchSelectionMove(
         this.selectionTouchGestureActive || touchStartedWithSelection || selectingText,
         hasCurrentSelection,
       )) {
-        cancelSelectionEdgeTurn();
         event.stopPropagation();
         event.stopImmediatePropagation();
         return;
       }
+      if (!preventSelectionPageTurns() && (this.selectionTouchGestureActive || selectingText)) return;
 
-      cancelSelectionEdgeTurn();
       if (!touchStartPoint) return;
       if (Date.now() <= this.selectionPageTurnGuardUntil) return;
       if (event.cancelable) event.preventDefault();
@@ -1511,7 +1462,6 @@ export class OmniBookReaderView extends FileView {
       event.stopImmediatePropagation();
     };
     const touchEnd = (event: TouchEvent): void => {
-      cancelSelectionEdgeTurn();
       this.noteReadingActivity();
       const start = touchStartPoint;
       const selectionStart = selectionTouchStartPoint;
@@ -1536,7 +1486,7 @@ export class OmniBookReaderView extends FileView {
       touchStartedWithSelection = false;
       selectingText = false;
       if (!start || !touch) {
-        if (hasTextSelection) {
+        if (hasTextSelection && preventSelectionPageTurns()) {
           if (attemptedSelectionPageTurn) this.blockPageTurnForSelection("ordinary", document, event);
           markSelectionInteraction();
           suppressClickUntil = event.timeStamp + 700;
@@ -1550,6 +1500,10 @@ export class OmniBookReaderView extends FileView {
       }
       this.selectionTouchGestureActive = false;
       touchInProgress = false;
+      if (hasTextSelection && !preventSelectionPageTurns()) {
+        capture();
+        return;
+      }
       const end = {
         x: touch.clientX,
         y: touch.clientY,
@@ -1591,7 +1545,6 @@ export class OmniBookReaderView extends FileView {
       }, 140);
     };
     const touchCancel = (): void => {
-      cancelSelectionEdgeTurn();
       touchStartPoint = null;
       selectionTouchStartPoint = null;
       touchStartedWithSelection = false;
@@ -1610,11 +1563,12 @@ export class OmniBookReaderView extends FileView {
     const selectionChange = (event: Event): void => {
       if (this.hasActiveReaderSelection(document)) markSelectionInteraction(850);
       capture();
-      // Foliate treats touch pointerdown as mouse selection and schedules its
-      // own prev/next from selectionchange, bypassing our navigation lock.
+      // Foliate schedules its own prev/next from selectionchange after pointer
+      // selection, bypassing our navigation lock on both desktop and mobile.
       // Capture phase runs before its document listener, even when registered
       // later. Do not preventDefault: Android must still adjust native handles.
-      if (Platform.isMobile && !this.fixedLayout && this.plugin.getReaderSettings().layout === "paginated") {
+      if (preventSelectionPageTurns() && !this.fixedLayout && this.plugin.getReaderSettings().layout === "paginated"
+        && (Platform.isMobile || this.shouldBlockPageTurnForSelection(document))) {
         event.stopImmediatePropagation();
       }
     };
@@ -1663,7 +1617,6 @@ export class OmniBookReaderView extends FileView {
       event.stopImmediatePropagation();
     };
     document.addEventListener("pointerup", pointerUp);
-    document.addEventListener("pointermove", pointerMove);
     document.addEventListener("mouseup", capture);
     document.addEventListener("touchstart", touchStart, { capture: true, passive: true });
     document.addEventListener("touchmove", touchMove, { capture: true, passive: false });
@@ -1679,11 +1632,9 @@ export class OmniBookReaderView extends FileView {
       this.attachedDocuments.delete(document);
       if (selectionFrame !== null) window.cancelAnimationFrame(selectionFrame);
       if (selectionRetry !== null) window.clearTimeout(selectionRetry);
-      cancelSelectionEdgeTurn();
       this.selectionTouchGestureActive = false;
       touchInProgress = false;
       document.removeEventListener("pointerup", pointerUp);
-      document.removeEventListener("pointermove", pointerMove);
       document.removeEventListener("mouseup", capture);
       document.removeEventListener("touchstart", touchStart, true);
       document.removeEventListener("touchmove", touchMove, true);
@@ -1730,6 +1681,7 @@ export class OmniBookReaderView extends FileView {
   ): ReturnType<typeof decideSelectionPageTurn> {
     return decideSelectionPageTurn({
       source,
+      preventPageTurnsWhileSelecting: this.plugin.getReaderSettings().preventPageTurnsWhileSelecting,
       hasActiveSelection: this.hasActiveReaderSelection(preferredDocument),
       hasPendingSelection: Boolean(this.pendingSelection),
       hasSelectionGesture: this.selectionTouchGestureActive,
@@ -1798,6 +1750,7 @@ export class OmniBookReaderView extends FileView {
           const reader = this.reader;
           const generation = this.loadGeneration;
           if (!reader) break;
+          if (this.shouldBlockPageTurnForSelection()) break;
           this.pendingPageTurn = null;
           await (currentDirection === "next" ? reader.goRight() : reader.goLeft());
           if (reader !== this.reader || generation !== this.loadGeneration) break;
@@ -1813,49 +1766,6 @@ export class OmniBookReaderView extends FileView {
       }
     };
     void run();
-  }
-
-  private async turnPageWhileSelecting(direction: "previous" | "next"): Promise<void> {
-    const reader = this.reader;
-    const pending = this.pendingSelection;
-    if (!reader || !pending || this.selectionPageTurnRunning || this.pageTurnRunning) return;
-    this.selectionPageTurnRunning = true;
-    this.selectionPageTurnGuardUntil = Math.max(this.selectionPageTurnGuardUntil, Date.now() + 1400);
-    try {
-      if (pageTurnCrossesSection(
-        direction,
-        reader.book.dir ?? "ltr",
-        reader.renderer.page,
-        reader.renderer.pages,
-      )) {
-        this.showLocalStatus(this.text(
-          "已到章节边界，请先保存当前高亮，再继续选择下一章",
-          "Chapter boundary reached. Save this highlight before selecting the next chapter.",
-        ));
-        return;
-      }
-      await (direction === "next" ? reader.goRight() : reader.goLeft());
-      if (reader !== this.reader || pending !== this.pendingSelection) return;
-      const content = reader.renderer.getContents?.()[0];
-      if (!content || content.index !== pending.sectionIndex) {
-        await reader.select(pending.cfi);
-        const restored = reader.renderer.getContents?.()[0];
-        if (restored?.index === pending.sectionIndex) this.captureSelection(restored.doc, restored.index);
-        this.showLocalStatus(this.text(
-          "已到章节边界，请先保存当前高亮，再继续选择下一章",
-          "Chapter boundary reached. Save this highlight before selecting the next chapter.",
-        ));
-        return;
-      }
-      const selection = content.doc.defaultView?.getSelection?.() ?? content.doc.getSelection?.();
-      if (!selection || selection.isCollapsed || selection.rangeCount === 0) await reader.select(pending.cfi);
-      this.captureSelection(content.doc, content.index);
-    } catch (error) {
-      console.warn("[Omni Book Reader] Could not turn the page while selecting", error);
-      this.showLocalStatus(this.text("无法继续跨页选择", "Could not continue the selection across pages"));
-    } finally {
-      this.selectionPageTurnRunning = false;
-    }
   }
 
   async exportCurrentChapter(): Promise<void> {

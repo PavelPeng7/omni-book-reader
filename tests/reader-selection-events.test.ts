@@ -69,7 +69,7 @@ function setup(mobile = true, backward = false) {
 
   // Skip Obsidian view construction while executing the real event wiring and
   // selection policy methods on its prototype.
-  const settings = { layout: "paginated", tapToTurnPages: true };
+  const settings = { layout: "paginated", tapToTurnPages: true, preventPageTurnsWhileSelecting: true };
   const view = Object.assign(Object.create(OmniBookReaderView.prototype), {
     attachedDocuments: new WeakSet(), cleanupCallbacks: [],
     plugin: { getReaderSettings: () => settings },
@@ -78,7 +78,6 @@ function setup(mobile = true, backward = false) {
     selectionTouchGestureActive: false, selectionNavigationNoticeShown: false,
     pendingSelection: null,
     captureSelection: vi.fn(), noteReadingActivity: vi.fn(),
-    turnPageWhileSelecting: vi.fn(),
     queuePageTurn: vi.fn(),
   });
   view.attachDocumentEvents(document, 0);
@@ -129,18 +128,48 @@ describe("reader selection event arbitration", () => {
     expect(paginator.prev).not.toHaveBeenCalled();
   });
 
-  it.each(["mouse", "pen", ""])("does not start desktop edge assistance on mobile for pointer type %s", (type) => {
-    const { view } = setup();
+  it.each(["mouse", "pen"])("does not turn a desktop selection at the page edge with %s", (type) => {
+    const { paginator, view } = setup(false);
+    pointer("pointerdown", type);
     pointer("pointermove", type, 390);
-    vi.advanceTimersByTime(600);
-    expect(view.turnPageWhileSelecting).not.toHaveBeenCalled();
+    document.dispatchEvent(new Event("selectionchange"));
+    pointer("pointerup", type, 390);
+    vi.advanceTimersByTime(800);
+    expect(paginator.next).not.toHaveBeenCalled();
+    expect(paginator.prev).not.toHaveBeenCalled();
+    expect(view.queuePageTurn).not.toHaveBeenCalled();
   });
 
-  it("retains desktop mouse edge assistance", () => {
-    const { view } = setup(false);
-    pointer("pointermove", "mouse", 390);
-    vi.advanceTimersByTime(600);
-    expect(view.turnPageWhileSelecting).toHaveBeenCalledWith("next");
+  it("lets Foliate handle desktop selection when protection is off", () => {
+    const { paginator, settings } = setup(false);
+    settings.preventPageTurnsWhileSelecting = false;
+    pointer("pointerdown", "mouse");
+    document.dispatchEvent(new Event("selectionchange"));
+    pointer("pointerup", "mouse");
+    vi.advanceTimersByTime(800);
+    expect(paginator.next).toHaveBeenCalledOnce();
+  });
+
+  it("lets Foliate handle touch selection when protection is off", () => {
+    const { paginator, settings } = setup();
+    settings.preventPageTurnsWhileSelecting = false;
+    pointer("pointerdown", "touch");
+    document.dispatchEvent(new Event("selectionchange"));
+    pointer("pointerup", "touch");
+    vi.advanceTimersByTime(800);
+    expect(paginator.next).toHaveBeenCalledOnce();
+  });
+
+  it("passes touch selection movement through when protection is off", () => {
+    const { settings } = setup();
+    settings.preventPageTurnsWhileSelecting = false;
+    const downstream = vi.fn();
+    document.addEventListener("touchmove", downstream);
+    cleanups.push(() => document.removeEventListener("touchmove", downstream));
+    touch("touchstart", 200);
+    const move = touch("touchmove", 80);
+    expect(downstream).toHaveBeenCalledOnce();
+    expect(move.defaultPrevented).toBe(false);
   });
 
   it("keeps collapsed vertical touch drags away from downstream touch pagination", () => {

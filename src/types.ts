@@ -18,6 +18,7 @@ export interface ReaderSettings {
   theme: ReaderTheme;
   layout: ReaderLayout;
   tapToTurnPages: boolean;
+  preventPageTurnsWhileSelecting: boolean;
   font: ReaderFont;
   fontSizePercent: number;
   lineHeight: number;

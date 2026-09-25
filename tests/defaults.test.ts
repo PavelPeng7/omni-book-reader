@@ -36,9 +36,11 @@ describe("reader settings", () => {
     expect(normalizeSettings({
       interfaceLanguage: "en",
       tapToTurnPages: false,
+      preventPageTurnsWhileSelecting: false,
       exportTemplate: "custom",
       customExportTemplatePath: "模板\\EPUB 导出.md",
-    })).toMatchObject({ interfaceLanguage: "en", tapToTurnPages: false, exportTemplate: "custom" });
+    })).toMatchObject({ interfaceLanguage: "en", tapToTurnPages: false, preventPageTurnsWhileSelecting: false, exportTemplate: "custom" });
+    expect(normalizeSettings({ preventPageTurnsWhileSelecting: "false" }).preventPageTurnsWhileSelecting).toBe(true);
     expect(normalizeSettings({
       exportTemplate: "callout",
       customExportTemplatePath: "模板\\EPUB 导出.md",

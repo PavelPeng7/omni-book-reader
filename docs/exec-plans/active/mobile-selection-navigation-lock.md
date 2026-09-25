@@ -5,7 +5,7 @@ Issue: https://github.com/PavelPeng7/omni-book-reader/issues/3
 
 ## Scope
 
-Prevent touch selection-handle drags from turning paginated pages on mobile while preserving desktop mouse edge-assisted selection and normal navigation after the selection is saved or cancelled.
+Prevent touch selection-handle drags from turning paginated pages on mobile while preserving normal navigation after the selection is saved or cancelled. Desktop edge assistance was removed by [`selection-never-turns-pages.md`](../completed/selection-never-turns-pages.md) after the user requested that selection never trigger pagination.
 
 ## Acceptance criteria
 
@@ -13,7 +13,7 @@ Prevent touch selection-handle drags from turning paginated pages on mobile whil
 - Ordinary navigation inputs remain blocked while native, pending, or settling selection state exists.
 - The first blocked navigation attempt for a selection shows guidance; later attempts for the same selection stay quiet.
 - Saving or cancelling the selection resets the guidance and restores navigation immediately.
-- Desktop mouse edge-assisted selection and scrolled-layout behavior remain unchanged.
+- Scrolled-layout behavior remains unchanged. Desktop selection-edge navigation is superseded by the newer product requirement.
 - Product and system design documentation describe the resulting behavior.
 
 ## Risks

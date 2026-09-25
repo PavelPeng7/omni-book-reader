@@ -3,6 +3,7 @@ export type SelectionPageTurnSource = "ordinary" | "touch-selection-edge" | "mou
 
 export interface SelectionPageTurnRequest {
   source: SelectionPageTurnSource;
+  preventPageTurnsWhileSelecting: boolean;
   hasActiveSelection: boolean;
   hasPendingSelection: boolean;
   hasSelectionGesture: boolean;
@@ -103,33 +104,6 @@ export function shouldDismissSelectionOnClick(
   return hasPendingSelection && !clickedInsideSelection;
 }
 
-export function selectionEdgePageTurnDirection(
-  clientX: number,
-  viewportWidth: number,
-  edgeSize = 44,
-): PageTurnDirection | null {
-  if (!Number.isFinite(clientX) || !Number.isFinite(viewportWidth) || viewportWidth <= 0) return null;
-  if (!Number.isFinite(edgeSize) || edgeSize <= 0 || edgeSize * 2 >= viewportWidth) return null;
-  if (clientX < 0 || clientX > viewportWidth) return null;
-  if (clientX <= edgeSize) return "previous";
-  if (clientX >= viewportWidth - edgeSize) return "next";
-  return null;
-}
-
-export function pageTurnCrossesSection(
-  direction: PageTurnDirection,
-  readingDirection: "ltr" | "rtl",
-  currentPage: number | undefined,
-  totalPages: number | undefined,
-): boolean {
-  if (typeof currentPage !== "number" || !Number.isFinite(currentPage)
-    || typeof totalPages !== "number" || !Number.isFinite(totalPages) || totalPages < 3) return false;
-  const movesForward = direction === (readingDirection === "rtl" ? "previous" : "next");
-  return movesForward
-    ? currentPage >= totalPages - 2
-    : currentPage <= 1;
-}
-
 export function shouldBlockPageTurnForSelection(
   hasActiveSelection: boolean,
   hasPendingSelection: boolean,
@@ -141,7 +115,7 @@ export function shouldBlockPageTurnForSelection(
 }
 
 export function decideSelectionPageTurn(request: SelectionPageTurnRequest): SelectionPageTurnDecision {
-  if (request.source === "mouse-selection-edge") return { blocked: false, notify: false };
+  if (!request.preventPageTurnsWhileSelecting) return { blocked: false, notify: false };
   const blocked = request.source === "touch-selection-edge" || request.hasSelectionGesture
     || shouldBlockPageTurnForSelection(
       request.hasActiveSelection,

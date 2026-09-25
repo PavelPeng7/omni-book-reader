@@ -5,6 +5,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   theme: "auto",
   layout: "paginated",
   tapToTurnPages: true,
+  preventPageTurnsWhileSelecting: true,
   font: "obsidian",
   fontSizePercent: 100,
   lineHeight: 1.7,
@@ -59,6 +60,9 @@ export function normalizeSettings(value: unknown): ReaderSettings {
     tapToTurnPages: typeof input.tapToTurnPages === "boolean"
       ? input.tapToTurnPages
       : DEFAULT_SETTINGS.tapToTurnPages,
+    preventPageTurnsWhileSelecting: typeof input.preventPageTurnsWhileSelecting === "boolean"
+      ? input.preventPageTurnsWhileSelecting
+      : DEFAULT_SETTINGS.preventPageTurnsWhileSelecting,
     font: fonts.has(String(input.font)) ? input.font as ReaderSettings["font"] : DEFAULT_SETTINGS.font,
     fontSizePercent: Math.round(clamp(input.fontSizePercent, 80, 180, DEFAULT_SETTINGS.fontSizePercent)),
     lineHeight: Math.round(clamp(input.lineHeight, 1.2, 2.2, DEFAULT_SETTINGS.lineHeight) * 10) / 10,

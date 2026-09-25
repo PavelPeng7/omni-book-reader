@@ -4,19 +4,18 @@ import {
   isPageTurnTap,
   isTextSelectionGesture,
   mobilePageTurnDirection,
-  pageTurnCrossesSection,
   shouldSuppressTouchPageTurn,
   shouldBlockPageTurnForSelection,
   shouldConsumeTouchSelectionMove,
   shouldDismissSelectionOnClick,
-  selectionEdgePageTurnDirection,
   swipePageTurnDirection,
   tapPageTurnDirection,
 } from "../src/mobile-input";
 
 describe("mobilePageTurnDirection", () => {
-  it("blocks touch selection-edge turns while preserving mouse edge assistance", () => {
+  it("blocks all page-turn sources during selection", () => {
     const selection = {
+      preventPageTurnsWhileSelecting: true,
       hasActiveSelection: true,
       hasPendingSelection: true,
       hasSelectionGesture: true,
@@ -26,11 +25,14 @@ describe("mobilePageTurnDirection", () => {
     };
 
     expect(decideSelectionPageTurn({ ...selection, source: "touch-selection-edge" }).blocked).toBe(true);
-    expect(decideSelectionPageTurn({ ...selection, source: "mouse-selection-edge" }).blocked).toBe(false);
+    expect(decideSelectionPageTurn({ ...selection, source: "mouse-selection-edge" }).blocked).toBe(true);
+    expect(decideSelectionPageTurn({ ...selection, source: "ordinary", preventPageTurnsWhileSelecting: false }))
+      .toEqual({ blocked: false, notify: false });
   });
 
   it("notifies once for a blocked selection and allows ordinary turns after it clears", () => {
     const collapsedTouchDrag = {
+      preventPageTurnsWhileSelecting: true,
       source: "touch-selection-edge" as const,
       hasActiveSelection: false,
       hasPendingSelection: false,
@@ -53,6 +55,7 @@ describe("mobilePageTurnDirection", () => {
 
   it("arbitrates each ordinary selection-lock state independently", () => {
     const base = {
+      preventPageTurnsWhileSelecting: true,
       source: "ordinary" as const,
       hasActiveSelection: false,
       hasPendingSelection: false,
@@ -151,31 +154,4 @@ describe("mobilePageTurnDirection", () => {
     expect(shouldBlockPageTurnForSelection(false, false, 1201, 1200)).toBe(false);
   });
 
-  it("turns pages only when a selection handle stays near a valid viewport edge", () => {
-    expect(selectionEdgePageTurnDirection(20, 400)).toBe("previous");
-    expect(selectionEdgePageTurnDirection(380, 400)).toBe("next");
-    expect(selectionEdgePageTurnDirection(200, 400)).toBeNull();
-    expect(selectionEdgePageTurnDirection(-1, 400)).toBeNull();
-    expect(selectionEdgePageTurnDirection(20, 80)).toBeNull();
-  });
-
-  it("detects section boundaries before a selection edge turn", () => {
-    expect(pageTurnCrossesSection("previous", "ltr", 1, 8)).toBe(true);
-    expect(pageTurnCrossesSection("next", "ltr", 6, 8)).toBe(true);
-    expect(pageTurnCrossesSection("next", "ltr", 5, 8)).toBe(false);
-    expect(pageTurnCrossesSection("previous", "ltr", 2, 8)).toBe(false);
-  });
-
-  it("reverses selection boundary directions for RTL books", () => {
-    expect(pageTurnCrossesSection("next", "rtl", 1, 8)).toBe(true);
-    expect(pageTurnCrossesSection("previous", "rtl", 6, 8)).toBe(true);
-    expect(pageTurnCrossesSection("next", "rtl", 2, 8)).toBe(false);
-    expect(pageTurnCrossesSection("previous", "rtl", 5, 8)).toBe(false);
-  });
-
-  it("does not infer a boundary without valid paginator state", () => {
-    expect(pageTurnCrossesSection("next", "ltr", undefined, 8)).toBe(false);
-    expect(pageTurnCrossesSection("next", "ltr", 6, undefined)).toBe(false);
-    expect(pageTurnCrossesSection("next", "ltr", 1, 2)).toBe(false);
-  });
 });
