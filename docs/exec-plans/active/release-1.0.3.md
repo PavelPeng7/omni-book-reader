@@ -21,4 +21,6 @@ Publish the selection navigation behavior and its configurable setting as 1.0.3.
 
 ## Validation log
 
-Pending.
+- 2026-09-25: release scope committed as `a7bd295`; unrelated working-tree changes were excluded.
+- 2026-09-25: clean detached worktree at `a7bd295` passed `npm ci` and `npm run release:check` (79 tests passed, 1 existing fixture test skipped). `dist/` contains non-empty `main.js` (371804 bytes), `manifest.json` (319 bytes), and `styles.css` (86981 bytes).
+- Clean-worktree SHA-256: `main.js` `aa52f53a6bbf34b78fba26630ee076dac7bc8b43ebadfee027ba027332f184cc`; `manifest.json` `b5b147a0ea82f6e219294c23627b0c2dbfb55bd12bd13b5d8c5760f409bb3c94`; `styles.css` `1fb87ed1f30b51d8261e1b1ed4c2254d7eaa6c2a28426386aa528c7b8d442ae0`.
