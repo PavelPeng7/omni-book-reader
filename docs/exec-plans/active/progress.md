@@ -4,8 +4,7 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 
 ## Current state
 
-- Latest completed release plan: [`../completed/release-1.0.4.md`](../completed/release-1.0.4.md), public assets and release workflow verified.
-- Active release plan: [`release-1.0.5.md`](release-1.0.5.md) for the Android selection-handle boundary fix.
+- Latest completed release plan: [`../completed/release-1.0.5.md`](../completed/release-1.0.5.md), public assets and release workflow verified.
 - Configurable selection navigation: [`../completed/configurable-selection-page-turns.md`](../completed/configurable-selection-page-turns.md), implementation and full verification complete.
 - Selection navigation change: [`../completed/selection-never-turns-pages.md`](../completed/selection-never-turns-pages.md), implementation and full verification complete.
 - Android selection fix: [`../completed/android-selection-paginator.md`](../completed/android-selection-paginator.md), event-level regression and fix complete; quick/full verification passed (82 passed, 1 skipped). Native device validation remains under TD-2026-001.
