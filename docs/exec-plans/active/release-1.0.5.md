@@ -22,4 +22,6 @@ Publish the Android selection-handle visible-page boundary fix as 1.0.5. The tag
 
 ## Validation log
 
-- Pending.
+- 2026-09-26: release scope committed as `667e6ab`; unrelated annotation-export working-tree changes were excluded.
+- Clean detached worktree at `667e6ab` passed `npm ci`, `npm run release:check`, and `npm run verify:full` (91 tests passed, 1 existing fixture test skipped). `dist/` contains non-empty `main.js` (373774 bytes), `manifest.json` (319 bytes), and `styles.css` (86981 bytes).
+- Clean-worktree SHA-256: `main.js` `6fb2788b0488ace519384dc62d0861fe3d57e576d05b0c61a6d9a3f8be8124e9`; `manifest.json` `b83f99d94979795e3f9072026335e6487698b5fac5dce9e236ccc01899e98bad`; `styles.css` `1fb87ed1f30b51d8261e1b1ed4c2254d7eaa6c2a28426386aa528c7b8d442ae0`.
