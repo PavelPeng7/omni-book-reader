@@ -4,6 +4,10 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 
 ## Current state
 
+- Active release plan: [`release-1.0.6.md`](release-1.0.6.md), selection behavior and inverse colors only.
+
+- Fixed selection behavior and inverse colors: [`../completed/selection-default-and-inverse.md`](../completed/selection-default-and-inverse.md), implementation and full verification complete (92 tests passed in the isolated release source, 1 existing fixture test skipped); native Android validation remains under TD-2026-001.
+
 - Latest completed release plan: [`../completed/release-1.0.5.md`](../completed/release-1.0.5.md), public assets and release workflow verified.
 - Configurable selection navigation: [`../completed/configurable-selection-page-turns.md`](../completed/configurable-selection-page-turns.md), implementation and full verification complete.
 - Selection navigation change: [`../completed/selection-never-turns-pages.md`](../completed/selection-never-turns-pages.md), implementation and full verification complete.

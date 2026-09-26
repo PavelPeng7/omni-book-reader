@@ -45,9 +45,9 @@ The schema is defined in `src/types.ts`. Any schema change must include normaliz
 
 ### Arbitrate selection and navigation
 
-Text selection and reader navigation share touch, pointer, keyboard, and wheel input. The persisted `preventPageTurnsWhileSelecting` setting defaults to true. When enabled, selection has priority whenever a native selection, pending annotation selection, or short selection-settling guard is active.
+Text selection and reader navigation share touch, pointer, keyboard, and wheel input. Selection always has priority whenever a native selection, pending annotation selection, or short selection-settling guard is active. Legacy `preventPageTurnsWhileSelecting` values are discarded by normalization.
 
-With protection enabled, touch selection-handle drags and desktop mouse or pen selection never navigate, including at page edges. The plugin does not schedule page turns from selection edges, and its capture-phase `selectionchange` handler prevents Foliate from scheduling selection-driven pagination in reflowable paginated content. Queued ordinary navigation checks selection state again before each turn. With protection disabled, Foliate receives selection changes and ordinary page-turn inputs are not rejected by the selection guard.
+Touch selection-handle drags and desktop mouse or pen selection never navigate, including at page edges. The plugin does not schedule page turns from selection edges, and its capture-phase `selectionchange` handler prevents Foliate from scheduling selection-driven pagination in reflowable paginated content. Queued ordinary navigation checks selection state again before each turn. A click or tap outside an active selection consumes that input, clears selection, and permits later ordinary navigation. `invertSelectionColors` only affects publication `::selection` styling and defaults off.
 
 Physical left/right input is not the same as logical previous/next content in RTL publications. Direction-sensitive page-turn changes must cover both LTR and RTL behavior. See [`docs/design-docs/systems/reader-selection-navigation.md`](docs/design-docs/systems/reader-selection-navigation.md) for the interaction invariants and test matrix.
 
@@ -68,7 +68,7 @@ Managed-block preservation is a product invariant. Changes to marker handling re
 - Do not depend on browser behavior that is unavailable in Obsidian's supported runtimes.
 - Keep publication content isolated from the plugin shell and Obsidian APIs.
 - Preserve user-controlled typography, zoom/reflow, selection, and accessibility behavior.
-- With selection page-turn protection enabled, treat native selection as a navigation lock: taps, swipes, keys, and wheels must not accidentally move the viewport while selection is active or settling.
+- Treat native selection as a navigation lock: taps, swipes, keys, and wheels must not accidentally move the viewport while selection is active or settling.
 - User-facing UI changes must follow the Botanical / Organic Serif guidance in `AGENTS.md`.
 
 ## Build, test, and release

@@ -10,7 +10,7 @@ Click a highlight in the book, or use its note button in the reader sidebar, to 
 
 Annotations support highlight, underline, strikethrough, and squiggly styles, four colors, notes, and tags. The sidebar can combine tag, chapter, color, and note-status filters, then sort by creation time or chapter. Exported entries include an Obsidian CFI link that reopens the source EPUB at the exact location.
 
-By default, selecting text or dragging selection handles keeps the current page in place on desktop and mobile. On Android, a handle stops at the visible page boundary when a paragraph continues onto another page. Turn off **Prevent page turns while selecting** in reader settings to allow Foliate's selection-based page turns. With protection on, highlight passages spanning pages separately; page turns resume after saving or cancelling the selection.
+Selecting text or dragging selection handles keeps the current page in place on desktop and mobile. On Android, a handle stops at the visible page boundary when a paragraph continues onto another page. Click or tap outside the selection to cancel it; page turns then resume. Highlight passages spanning pages separately. **Invert selection colors** in reader settings uses the current reading theme's text color behind selected text and its page color for the selected letters.
 
 Additional reading tools:
 

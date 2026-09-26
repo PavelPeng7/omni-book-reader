@@ -15,7 +15,6 @@ import {
 describe("mobilePageTurnDirection", () => {
   it("blocks all page-turn sources during selection", () => {
     const selection = {
-      preventPageTurnsWhileSelecting: true,
       hasActiveSelection: true,
       hasPendingSelection: true,
       hasSelectionGesture: true,
@@ -26,13 +25,12 @@ describe("mobilePageTurnDirection", () => {
 
     expect(decideSelectionPageTurn({ ...selection, source: "touch-selection-edge" }).blocked).toBe(true);
     expect(decideSelectionPageTurn({ ...selection, source: "mouse-selection-edge" }).blocked).toBe(true);
-    expect(decideSelectionPageTurn({ ...selection, source: "ordinary", preventPageTurnsWhileSelecting: false }))
-      .toEqual({ blocked: false, notify: false });
+    expect(decideSelectionPageTurn({ ...selection, source: "ordinary" }))
+      .toEqual({ blocked: true, notify: true });
   });
 
   it("notifies once for a blocked selection and allows ordinary turns after it clears", () => {
     const collapsedTouchDrag = {
-      preventPageTurnsWhileSelecting: true,
       source: "touch-selection-edge" as const,
       hasActiveSelection: false,
       hasPendingSelection: false,
@@ -55,7 +53,6 @@ describe("mobilePageTurnDirection", () => {
 
   it("arbitrates each ordinary selection-lock state independently", () => {
     const base = {
-      preventPageTurnsWhileSelecting: true,
       source: "ordinary" as const,
       hasActiveSelection: false,
       hasPendingSelection: false,

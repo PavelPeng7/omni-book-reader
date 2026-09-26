@@ -72,16 +72,17 @@ function setup(mobile = true, backward = false) {
 
   // Skip Obsidian view construction while executing the real event wiring and
   // selection policy methods on its prototype.
-  const settings = { layout: "paginated", tapToTurnPages: true, preventPageTurnsWhileSelecting: true };
+  const settings = { layout: "paginated", tapToTurnPages: true };
   const view = Object.assign(Object.create(OmniBookReaderView.prototype), {
     attachedDocuments: new WeakSet(), cleanupCallbacks: [],
     plugin: { getReaderSettings: () => settings },
-    reader: { renderer: Object.assign(paginator, { getContents: () => [{ doc: document }] }) },
+    reader: { renderer: Object.assign(paginator, { getContents: () => [{ doc: document }] }), deselect: vi.fn() },
     fixedLayout: false, selectionPageTurnGuardUntil: 0,
     selectionTouchGestureActive: false, selectionNavigationNoticeShown: false,
     pendingSelection: null,
     captureSelection: vi.fn(), noteReadingActivity: vi.fn(),
-    queuePageTurn: vi.fn(),
+    queuePageTurn: vi.fn(), uiState: { close: vi.fn() },
+    viewerEl: { getBoundingClientRect: () => ({ left: 0, width: 400 }) },
   });
   view.attachDocumentEvents(document, 0, paginator);
   cleanups.push(() => view.cleanupCallbacks.forEach((cleanup: () => void) => cleanup()));
@@ -195,29 +196,17 @@ describe("reader selection event arbitration", () => {
     expect(selection.focusOffset).toBe(pending ? 15 : 5);
   });
 
-  it.each(["disabled", "scrolled"])("leaves cross-page handles alone when selection protection is %s", (mode) => {
+  it("leaves cross-page handles alone in continuous layout", () => {
     const { view, settings, text, visible } = setup();
     visible.setStart(text, 15);
     visible.setEnd(text, 30);
     view.reader.lastLocation = { range: visible };
-    if (mode === "disabled") settings.preventPageTurnsWhileSelecting = false;
-    else settings.layout = "scrolled";
+    settings.layout = "scrolled";
     const selection = window.getSelection()!;
     selection.setBaseAndExtent(text, 25, text, 5);
     touch("touchstart", 200);
     document.dispatchEvent(new Event("selectionchange"));
     expect(selection.focusOffset).toBe(5);
-  });
-
-  it("does not lock publication scroll when selection protection is disabled", () => {
-    const { paginator, settings } = setup();
-    settings.preventPageTurnsWhileSelecting = false;
-    document.documentElement.scrollLeft = 400;
-    document.dispatchEvent(new Event("scroll"));
-    paginator.containerPosition = 0;
-    paginator.dispatchEvent(new Event("scroll"));
-    expect(document.documentElement.scrollLeft).toBe(400);
-    expect(paginator.containerPosition).toBe(0);
   });
 
   it("allows normal paginated scrolling after the selection is cleared", () => {
@@ -262,38 +251,6 @@ describe("reader selection event arbitration", () => {
     expect(view.queuePageTurn).not.toHaveBeenCalled();
   });
 
-  it("lets Foliate handle desktop selection when protection is off", () => {
-    const { paginator, settings } = setup(false);
-    settings.preventPageTurnsWhileSelecting = false;
-    pointer("pointerdown", "mouse");
-    document.dispatchEvent(new Event("selectionchange"));
-    pointer("pointerup", "mouse");
-    vi.advanceTimersByTime(800);
-    expect(paginator.next).toHaveBeenCalledOnce();
-  });
-
-  it("lets Foliate handle touch selection when protection is off", () => {
-    const { paginator, settings } = setup();
-    settings.preventPageTurnsWhileSelecting = false;
-    pointer("pointerdown", "touch");
-    document.dispatchEvent(new Event("selectionchange"));
-    pointer("pointerup", "touch");
-    vi.advanceTimersByTime(800);
-    expect(paginator.next).toHaveBeenCalledOnce();
-  });
-
-  it("passes touch selection movement through when protection is off", () => {
-    const { settings } = setup();
-    settings.preventPageTurnsWhileSelecting = false;
-    const downstream = vi.fn();
-    document.addEventListener("touchmove", downstream);
-    cleanups.push(() => document.removeEventListener("touchmove", downstream));
-    touch("touchstart", 200);
-    const move = touch("touchmove", 80);
-    expect(downstream).toHaveBeenCalledOnce();
-    expect(move.defaultPrevented).toBe(false);
-  });
-
   it("keeps collapsed vertical touch drags away from downstream touch pagination", () => {
     const { view } = setup();
     const downstream = vi.fn();
@@ -320,6 +277,39 @@ describe("reader selection event arbitration", () => {
     touch("touchstart", 200, 250, 1000);
     touch("touchend", 200, 100, 1200);
     expect(view.queuePageTurn).toHaveBeenCalledWith("next");
+  });
+
+  it("dismisses a native selection on an outside click before allowing a page turn", () => {
+    const { view } = setup(false);
+    const range = window.getSelection()!.getRangeAt(0);
+    range.getClientRects = () => [{ left: 10, right: 100, top: 10, bottom: 30 }] as unknown as DOMRectList;
+    document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 200, clientY: 200 }));
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1, clientX: 200, clientY: 200 }));
+    expect(window.getSelection()!.rangeCount).toBe(0);
+    expect(view.queuePageTurn).not.toHaveBeenCalled();
+    view.selectionPageTurnGuardUntil = 0;
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1, clientX: 200, clientY: 200 }));
+    expect(view.queuePageTurn).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the selection when clicking its selected text", () => {
+    const { view } = setup(false);
+    const range = window.getSelection()!.getRangeAt(0);
+    range.getClientRects = () => [{ left: 10, right: 100, top: 10, bottom: 30 }] as unknown as DOMRectList;
+    document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 50, clientY: 20 }));
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1, clientX: 50, clientY: 20 }));
+    expect(window.getSelection()!.rangeCount).toBe(1);
+    expect(view.queuePageTurn).not.toHaveBeenCalled();
+  });
+
+  it("dismisses a touch selection on an outside tap without navigating", () => {
+    const { view } = setup();
+    const range = window.getSelection()!.getRangeAt(0);
+    range.getClientRects = () => [{ left: 10, right: 100, top: 10, bottom: 30 }] as unknown as DOMRectList;
+    touch("touchstart", 200, 200, 1000);
+    touch("touchend", 200, 200, 1100);
+    expect(window.getSelection()!.rangeCount).toBe(0);
+    expect(view.queuePageTurn).not.toHaveBeenCalled();
   });
 
   it("does not intercept selectionchange in scrolled layout", () => {

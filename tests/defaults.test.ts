@@ -36,11 +36,12 @@ describe("reader settings", () => {
     expect(normalizeSettings({
       interfaceLanguage: "en",
       tapToTurnPages: false,
-      preventPageTurnsWhileSelecting: false,
+      invertSelectionColors: true,
       exportTemplate: "custom",
       customExportTemplatePath: "模板\\EPUB 导出.md",
-    })).toMatchObject({ interfaceLanguage: "en", tapToTurnPages: false, preventPageTurnsWhileSelecting: false, exportTemplate: "custom" });
-    expect(normalizeSettings({ preventPageTurnsWhileSelecting: "false" }).preventPageTurnsWhileSelecting).toBe(true);
+    })).toMatchObject({ interfaceLanguage: "en", tapToTurnPages: false, invertSelectionColors: true, exportTemplate: "custom" });
+    expect(normalizeSettings({ invertSelectionColors: "true" }).invertSelectionColors).toBe(false);
+    expect(normalizeSettings({ preventPageTurnsWhileSelecting: false })).toEqual(DEFAULT_SETTINGS);
     expect(normalizeSettings({
       exportTemplate: "callout",
       customExportTemplatePath: "模板\\EPUB 导出.md",

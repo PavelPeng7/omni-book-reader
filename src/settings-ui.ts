@@ -51,11 +51,11 @@ function renderSettings(
       .onChange((tapToTurnPages) => host.updateReaderSettings({ tapToTurnPages })));
 
   new Setting(container)
-    .setName(t("选中时禁止翻页", "Prevent page turns while selecting"))
-    .setDesc(t("选中文字或拖动选区游标时保持当前页。关闭后允许阅读器按原有方式翻页。", "Keep the current page while selecting text or dragging selection handles. Turn this off to allow the reader's usual page turns."))
+    .setName(t("选中反色", "Invert selection colors"))
+    .setDesc(t("选中文字时，用当前阅读主题的文字色作背景、页面色作文字色。", "Use the reading theme's text color as the selection background and page color as selected text color."))
     .addToggle((toggle) => toggle
-      .setValue(get().preventPageTurnsWhileSelecting)
-      .onChange((preventPageTurnsWhileSelecting) => host.updateReaderSettings({ preventPageTurnsWhileSelecting })));
+      .setValue(get().invertSelectionColors)
+      .onChange((invertSelectionColors) => host.updateReaderSettings({ invertSelectionColors })));
 
   new Setting(container)
     .setName(t("阅读工具栏自动弱化", "Auto-hide reader chrome"))
@@ -294,9 +294,9 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
             },
           },
           {
-            name: t("选中时禁止翻页", "Prevent page turns while selecting"),
-            desc: t("选中文字或拖动选区游标时保持当前页。关闭后允许阅读器按原有方式翻页。", "Keep the current page while selecting text or dragging selection handles. Turn this off to allow the reader's usual page turns."),
-            control: { type: "toggle", key: "preventPageTurnsWhileSelecting" },
+            name: t("选中反色", "Invert selection colors"),
+            desc: t("选中文字时，用当前阅读主题的文字色作背景、页面色作文字色。", "Use the reading theme's text color as the selection background and page color as selected text color."),
+            control: { type: "toggle", key: "invertSelectionColors" },
           },
           {
             name: t("阅读工具栏自动弱化", "Auto-hide reader chrome"),
@@ -473,7 +473,7 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
       case "theme": return settings.theme;
       case "layout": return settings.layout;
       case "tapToTurnPages": return settings.tapToTurnPages;
-      case "preventPageTurnsWhileSelecting": return settings.preventPageTurnsWhileSelecting;
+      case "invertSelectionColors": return settings.invertSelectionColors;
       case "readerChromeAutoHide": return settings.readerChromeAutoHide;
       case "interfaceDensity": return settings.interfaceDensity;
       case "defaultHighlightColor": return settings.defaultHighlightColor;
@@ -510,8 +510,8 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
       case "tapToTurnPages":
         if (typeof value === "boolean") this.host.updateReaderSettings({ tapToTurnPages: value });
         return;
-      case "preventPageTurnsWhileSelecting":
-        if (typeof value === "boolean") this.host.updateReaderSettings({ preventPageTurnsWhileSelecting: value });
+      case "invertSelectionColors":
+        if (typeof value === "boolean") this.host.updateReaderSettings({ invertSelectionColors: value });
         return;
       case "readerChromeAutoHide":
         if (typeof value === "boolean") this.host.updateReaderSettings({ readerChromeAutoHide: value });

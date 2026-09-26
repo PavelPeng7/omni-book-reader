@@ -13,7 +13,7 @@ Omni Book Reader is a local-first EPUB 2/3 reading workbench inside Obsidian. It
 | Library | Discover local EPUB files, display a bookshelf, filter/sort books, customize covers, and continue recent reading |
 | Reading | Support paginated and scrolled layouts, table-of-contents navigation, search, position restore, appearance settings, and focus paragraph mode |
 | Input | Support keyboard, touch, swipe, and mobile page-turn controls without breaking text selection or editable controls |
-| Annotations | Create bookmarks, highlights, underlines, strikethroughs, squiggles, notes, colors, and tags; filter and sort saved annotations; optionally keep text selection and selection-handle drags on the current page on desktop and mobile |
+| Annotations | Create bookmarks, highlights, underlines, strikethroughs, squiggles, notes, colors, and tags; filter and sort saved annotations; keep text selection and selection-handle drags on the current page on desktop and mobile |
 | Exports | Produce managed Highlight/Note Markdown documents and chapter Markdown with local assets while preserving user content outside managed blocks |
 | Reading history | Track active session time, furthest progress, completion, estimated remaining time, and recent books |
 | Integration | Open `.epub` files as an Obsidian view and reopen exact locations through `obsidian://omni-book-reader` CFI links |
@@ -28,11 +28,11 @@ The [`README.md`](../../README.md) is the user-facing feature overview. When beh
 - Exports never overwrite user-authored text outside plugin-managed blocks.
 - Saved state is normalized so malformed or legacy data does not prevent the plugin from loading.
 - Reader settings preserve legibility, selection, zoom/reflow, keyboard access, and mobile use.
-- The "Prevent page turns while selecting" reader option is enabled by default and available in both settings interfaces. When enabled, a native or pending text selection owns navigation until it is saved or cancelled on desktop and mobile; selection drags in any direction never turn paginated pages or repeat page turns, and clicking outside the selection cancels it.
-- When the option is disabled, selection-based navigation is handed back to Foliate and ordinary page-turn controls are no longer blocked solely by a selection. Clicking outside a pending selection still dismisses it.
-- With the option enabled, Android vertical selection-handle drags remain on the current page even away from horizontal edges and after release; dependency-level selection-change navigation must obey this constraint too. Cross-page passages are highlighted in separate selections.
+- Native or pending text selection owns navigation until it is saved or cancelled on desktop and mobile; selection drags in any direction never turn paginated pages or repeat page turns. Clicking or tapping outside the selection cancels it without navigating, and the next ordinary input can turn the page.
+- Android vertical selection-handle drags remain on the current page even away from horizontal edges and after release; dependency-level selection-change navigation must obey this constraint too. Cross-page passages are highlighted in separate selections.
 - While an Android selection handle remains held, crossing a paginated paragraph boundary must not scroll the publication viewport or Foliate page container, including when the native range briefly collapses.
-- With protection enabled, an Android selection handle that reaches text on another paginated page stays at the current page's first or last visible text position; the selected passage remains usable on the current page.
+- An Android selection handle that reaches text on another paginated page stays at the current page's first or last visible text position; the selected passage remains usable on the current page.
+- An optional inverse selection color setting, available in both settings interfaces, uses each reading theme's foreground as the selected background and its page background as the selected text color. Legacy saved navigation-toggle values are ignored.
 - Interface changes remain coherent with the Botanical / Organic Serif system in [`../../AGENTS.md`](../../AGENTS.md).
 - Production releases contain a non-empty `main.js`, `manifest.json`, and `styles.css` with consistent versions.
 

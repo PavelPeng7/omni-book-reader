@@ -38,4 +38,14 @@ describe("publication typography", () => {
     expect(css).toContain("white-space: pre-wrap !important");
     expect(css).toContain('a[epub\\:type~="noteref"]');
   });
+
+  it.each([
+    ["light", "#2d3a31", "#f9f8f4"],
+    ["dark", "#e6e8e1", "#19231d"],
+    ["sepia", "#44382a", "#f3ead7"],
+  ] as const)("inverts selected text against the %s reading theme", (theme, foreground, background) => {
+    const css = buildPublicationCss({ ...DEFAULT_SETTINGS, theme, invertSelectionColors: true });
+    expect(css).toContain(`background: ${foreground} !important;`);
+    expect(css).toContain(`color: ${background} !important;`);
+  });
 });

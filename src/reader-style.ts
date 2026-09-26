@@ -109,7 +109,10 @@ export function buildPublicationCss(settings: ReaderSettings): string {
       font-size: inherit !important;
       text-underline-offset: .14em;
     }
-    body ::selection { background: ${colors.selection} !important; }
+    body ::selection {
+      background: ${settings.invertSelectionColors ? colors.foreground : colors.selection} !important;
+      ${settings.invertSelectionColors ? `color: ${colors.background} !important;` : ""}
+    }
     body :is(img, svg, video, canvas) {
       max-width: 100% !important;
       height: auto !important;

@@ -3,7 +3,6 @@ export type SelectionPageTurnSource = "ordinary" | "touch-selection-edge" | "mou
 
 export interface SelectionPageTurnRequest {
   source: SelectionPageTurnSource;
-  preventPageTurnsWhileSelecting: boolean;
   hasActiveSelection: boolean;
   hasPendingSelection: boolean;
   hasSelectionGesture: boolean;
@@ -98,10 +97,10 @@ export function shouldConsumeTouchSelectionMove(
 }
 
 export function shouldDismissSelectionOnClick(
-  hasPendingSelection: boolean,
+  hasSelection: boolean,
   clickedInsideSelection: boolean,
 ): boolean {
-  return hasPendingSelection && !clickedInsideSelection;
+  return hasSelection && !clickedInsideSelection;
 }
 
 export function shouldBlockPageTurnForSelection(
@@ -115,7 +114,6 @@ export function shouldBlockPageTurnForSelection(
 }
 
 export function decideSelectionPageTurn(request: SelectionPageTurnRequest): SelectionPageTurnDecision {
-  if (!request.preventPageTurnsWhileSelecting) return { blocked: false, notify: false };
   const blocked = request.source === "touch-selection-edge" || request.hasSelectionGesture
     || shouldBlockPageTurnForSelection(
       request.hasActiveSelection,
