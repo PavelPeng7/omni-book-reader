@@ -32,6 +32,7 @@ Record intentional compromises that have a concrete maintenance, reliability, se
 - Introduced: 2026-08-28, `docs/exec-plans/completed/chapter-boundary-selection.md`
 - Impact: unit tests cover gesture and boundary decisions, but cannot reproduce browser-native selection-handle timing, iframe event ordering, or document replacement at a spine boundary; regressions can remain device-specific until manual testing
 - 2026-09-26 follow-up: event tests now cover repeated document/paginator scroll restoration during a held selection, but Android WebView validation is still needed to confirm native selection auto-scroll cannot paint or replace pages before the lock restores the position.
+- 2026-09-26 handle follow-up: event tests clamp both native selection endpoints to Foliate's visible text range after a split-paragraph boundary crossing; device testing is still needed to confirm handle placement in Android WebView.
 - Reason accepted: the current Vitest/jsdom environment does not provide native selection handles or an Obsidian mobile runtime
 - Exit criteria: an integration or device test asserts that mobile selection-handle drags and desktop selection drags never navigate when selection page-turn protection is enabled
 - Owner/trigger: revisit when adding browser-driven Obsidian tests, upgrading Foliate, or changing selection/touch event handling

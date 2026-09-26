@@ -46,6 +46,14 @@ The reader snapshots the publication document's root/body scroll offsets and Fol
 
 The event harness simulates repeated cross-page scroll attempts and temporary range collapse. It cannot establish that a specific Android WebView emits every native selection scroll event before painting; device validation remains required.
 
+## Native handle boundary during a held selection (2026-09-26)
+
+Keeping the viewport still does not keep an Android native selection endpoint on the page. When a paragraph starts on the previous page, the browser can move the dragged endpoint into that off-page portion even while the scroll lock restores the current page. The resulting handle appears to jump backward.
+
+Foliate's latest relocation exposes the exact visible text `Range` for the current page. During a protected Android selection gesture, the reader compares both native selection endpoints with that range and clamps only out-of-page endpoints to its start or end. This preserves selection direction and the in-page endpoint. Clamping happens before viewport scroll restoration. A selection entirely outside the visible range is left alone because it has no in-page endpoint to preserve. Continuous layout, fixed layout, disabled protection, and selections outside a touch gesture or pending annotation are unaffected.
+
+Event tests cover both selection endpoints crossing the previous-page boundary, a forward boundary crossing, ordinary in-page adjustment, disabled protection, and continuous layout. Native Android handle appearance still needs device validation.
+
 `tests/reader-selection-events.test.ts` executes the installed Foliate selection-listener code with its private visible-range field exposed to a DOM fixture, alongside the real reader document handlers. It covers forward/backward range extension, held/released gestures, collapsed touch moves, desktop mouse and pen selection, ordinary swipes, and cleanup. This proves event-path arbitration; jsdom does not prove native selection-handle behavior.
 
 ## Required regression matrix
@@ -62,6 +70,7 @@ For changes involving selection or navigation, cover the applicable rows:
 | Touch selection handle, any page | Holding or dragging at either viewport edge does not navigate |
 | Touch selection handle, vertical movement | Moving a handle toward the top or bottom does not invoke Foliate pagination or repeat page turns |
 | Touch selection crossing a paragraph/page boundary | Repeated document or paginator scroll attempts restore the current page throughout the drag |
+| Touch selection endpoint crossing a page boundary | The dragged handle remains at the current page's first or last visible text position |
 | Mouse or pen selection, any page or edge | Dragging never calls plugin or Foliate pagination |
 | Protection disabled, selection active | Foliate receives `selectionchange`, and plugin page-turn policy does not block solely for selection |
 | Scrolled or fixed layout | Paginated edge-assistance rules are not applied accidentally |

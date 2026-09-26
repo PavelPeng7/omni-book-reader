@@ -85,7 +85,7 @@ function setup(mobile = true, backward = false) {
   });
   view.attachDocumentEvents(document, 0, paginator);
   cleanups.push(() => view.cleanupCallbacks.forEach((cleanup: () => void) => cleanup()));
-  return { paginator, view, settings };
+  return { paginator, view, settings, text, visible };
 }
 
 function pointer(type: string, pointerType: string, x = 200, y = 200) {
@@ -143,6 +143,70 @@ describe("reader selection event arbitration", () => {
       expect(document.documentElement.scrollLeft).toBe(0);
       expect(paginator.containerPosition).toBe(400);
     }
+  });
+
+  it.each(["focus", "anchor"])("keeps the %s handle on the visible page while dragging across a split paragraph", (handle) => {
+    const { view, paginator, text, visible } = setup();
+    visible.setStart(text, 15);
+    visible.setEnd(text, 30);
+    view.reader.lastLocation = { range: visible };
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.setBaseAndExtent(text, 25, text, 20);
+    touch("touchstart", 200);
+    document.dispatchEvent(new Event("selectionchange"));
+
+    if (handle === "focus") selection.setBaseAndExtent(text, 25, text, 5);
+    else selection.setBaseAndExtent(text, 5, text, 25);
+    document.documentElement.scrollLeft = -400;
+    document.dispatchEvent(new Event("selectionchange"));
+
+    expect(document.documentElement.scrollLeft).toBe(0);
+    expect(paginator.containerPosition).toBe(400);
+    expect(handle === "focus" ? selection.focusOffset : selection.anchorOffset).toBe(15);
+    expect(selection.isCollapsed).toBe(false);
+  });
+
+  it("clamps a handle dragged toward the next page and leaves in-page movement alone", () => {
+    const { view, text, visible } = setup();
+    visible.setStart(text, 15);
+    visible.setEnd(text, 30);
+    view.reader.lastLocation = { range: visible };
+    const selection = window.getSelection()!;
+    selection.setBaseAndExtent(text, 20, text, 25);
+    touch("touchstart", 200);
+    document.dispatchEvent(new Event("selectionchange"));
+    expect(selection.focusOffset).toBe(25);
+
+    selection.setBaseAndExtent(text, 20, text, 38);
+    document.dispatchEvent(new Event("selectionchange"));
+    expect(selection.focusOffset).toBe(30);
+  });
+
+  it.each([true, false])("uses a pending touch selection after native handle events stop (pending=%s)", (pending) => {
+    const { view, text, visible } = setup();
+    visible.setStart(text, 15);
+    visible.setEnd(text, 30);
+    view.reader.lastLocation = { range: visible };
+    const selection = window.getSelection()!;
+    selection.setBaseAndExtent(text, 25, text, 5);
+    view.pendingSelection = pending ? { selection } : null;
+    document.dispatchEvent(new Event("selectionchange"));
+    expect(selection.focusOffset).toBe(pending ? 15 : 5);
+  });
+
+  it.each(["disabled", "scrolled"])("leaves cross-page handles alone when selection protection is %s", (mode) => {
+    const { view, settings, text, visible } = setup();
+    visible.setStart(text, 15);
+    visible.setEnd(text, 30);
+    view.reader.lastLocation = { range: visible };
+    if (mode === "disabled") settings.preventPageTurnsWhileSelecting = false;
+    else settings.layout = "scrolled";
+    const selection = window.getSelection()!;
+    selection.setBaseAndExtent(text, 25, text, 5);
+    touch("touchstart", 200);
+    document.dispatchEvent(new Event("selectionchange"));
+    expect(selection.focusOffset).toBe(5);
   });
 
   it("does not lock publication scroll when selection protection is disabled", () => {

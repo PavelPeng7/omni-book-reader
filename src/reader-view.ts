@@ -1598,8 +1598,34 @@ export class OmniBookReaderView extends FileView {
       markSelectionInteraction(850);
       capture();
     };
+    const clampTouchSelectionToPage = (): void => {
+      if (!Platform.isMobile || !preventSelectionPageTurns()
+        || this.fixedLayout || this.plugin.getReaderSettings().layout !== "paginated") return;
+      const visible = this.reader?.lastLocation?.range;
+      const selection = document.defaultView?.getSelection?.() ?? document.getSelection?.();
+      if (!visible || !selection || selection.isCollapsed || !selection.anchorNode || !selection.focusNode
+        || !(touchInProgress || this.selectionTouchGestureActive || this.pendingSelection?.selection === selection)
+        || (visible.commonAncestorContainer.ownerDocument ?? visible.commonAncestorContainer) !== document) return;
+      const clampPoint = (node: Node, offset: number): { node: Node; offset: number; side: number } => {
+        const side = visible.comparePoint(node, offset);
+        if (side < 0) return { node: visible.startContainer, offset: visible.startOffset, side };
+        if (side > 0) return { node: visible.endContainer, offset: visible.endOffset, side };
+        return { node, offset, side };
+      };
+      try {
+        const anchor = clampPoint(selection.anchorNode, selection.anchorOffset);
+        const focus = clampPoint(selection.focusNode, selection.focusOffset);
+        if (anchor.side === 0 && focus.side === 0) return;
+        // A wholly off-page selection has no in-page endpoint to preserve.
+        if (anchor.side !== 0 && anchor.side === focus.side) return;
+        selection.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
+      } catch {
+        // Ignore a stale visible range while Foliate replaces the section.
+      }
+    };
     const selectionChange = (event: Event): void => {
       if (this.hasActiveReaderSelection(document)) markSelectionInteraction(850);
+      clampTouchSelectionToPage();
       restoreSelectionScroll();
       capture();
       // Foliate schedules its own prev/next from selectionchange after pointer

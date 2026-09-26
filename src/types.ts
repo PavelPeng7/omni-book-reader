@@ -148,6 +148,7 @@ export interface FoliateOverlayer {
 
 export interface FoliateLocation {
   cfi?: string;
+  range?: Range;
   fraction?: number;
   tocItem?: { label?: unknown; href?: string };
   pageItem?: { label?: unknown };
