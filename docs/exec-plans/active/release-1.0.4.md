@@ -22,4 +22,6 @@ Publish the Android selection-handle scroll lock as 1.0.4. The tag must contain 
 
 ## Validation log
 
-- Pending.
+- 2026-09-26: release scope committed as `1acce9a`; unrelated annotation-export working-tree changes were excluded.
+- Clean detached worktree at `1acce9a` passed `npm ci`, `npm run release:check`, and `npm run verify:full` (84 tests passed, 1 existing fixture test skipped). `dist/` contains non-empty `main.js` (372968 bytes), `manifest.json` (319 bytes), and `styles.css` (86981 bytes).
+- Clean-worktree SHA-256: `main.js` `192d44c19eeda36b9a4240e1e03708bf140b94ea5ebc1f60c7f08282cb95f6f3`; `manifest.json` `f115f8a7b4555a81fd12f1c3d2babfb8508ac52e056b959b6b6093152ca0aec6`; `styles.css` `1fb87ed1f30b51d8261e1b1ed4c2254d7eaa6c2a28426386aa528c7b8d442ae0`.
