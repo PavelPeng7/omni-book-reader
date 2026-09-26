@@ -30,6 +30,8 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
   window.getSelection()?.removeAllRanges();
   document.body.replaceChildren();
+  document.documentElement.scrollLeft = 0;
+  document.documentElement.scrollTop = 0;
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -55,6 +57,7 @@ function setup(mobile = true, backward = false) {
   const paginator = Object.assign(new EventTarget(), {
     visibleRange: visible, scrolled: false,
     prev: vi.fn(), next: vi.fn(), scrollToAnchor: vi.fn(),
+    containerPosition: 400,
   });
   new Function(`${debounceSource}\n${selectionDirectionSource}\n${selectionSource}`).call(paginator);
   // Foliate installs its listeners before the plugin receives the load event.
@@ -73,14 +76,14 @@ function setup(mobile = true, backward = false) {
   const view = Object.assign(Object.create(OmniBookReaderView.prototype), {
     attachedDocuments: new WeakSet(), cleanupCallbacks: [],
     plugin: { getReaderSettings: () => settings },
-    reader: { renderer: { getContents: () => [{ doc: document }] } },
+    reader: { renderer: Object.assign(paginator, { getContents: () => [{ doc: document }] }) },
     fixedLayout: false, selectionPageTurnGuardUntil: 0,
     selectionTouchGestureActive: false, selectionNavigationNoticeShown: false,
     pendingSelection: null,
     captureSelection: vi.fn(), noteReadingActivity: vi.fn(),
     queuePageTurn: vi.fn(),
   });
-  view.attachDocumentEvents(document, 0);
+  view.attachDocumentEvents(document, 0, paginator);
   cleanups.push(() => view.cleanupCallbacks.forEach((cleanup: () => void) => cleanup()));
   return { paginator, view, settings };
 }
@@ -126,6 +129,61 @@ describe("reader selection event arbitration", () => {
     }
     expect(paginator.next).not.toHaveBeenCalled();
     expect(paginator.prev).not.toHaveBeenCalled();
+  });
+
+  it("restores both publication and paginator scroll when an active selection crosses the page boundary", () => {
+    const { paginator } = setup();
+    touch("touchstart", 200);
+    for (let page = 1; page <= 3; page++) {
+      if (page === 2) window.getSelection()!.removeAllRanges();
+      document.documentElement.scrollLeft = page * 400;
+      document.dispatchEvent(new Event("scroll"));
+      paginator.containerPosition = 400 - page * 400;
+      paginator.dispatchEvent(new Event("scroll"));
+      expect(document.documentElement.scrollLeft).toBe(0);
+      expect(paginator.containerPosition).toBe(400);
+    }
+  });
+
+  it("does not lock publication scroll when selection protection is disabled", () => {
+    const { paginator, settings } = setup();
+    settings.preventPageTurnsWhileSelecting = false;
+    document.documentElement.scrollLeft = 400;
+    document.dispatchEvent(new Event("scroll"));
+    paginator.containerPosition = 0;
+    paginator.dispatchEvent(new Event("scroll"));
+    expect(document.documentElement.scrollLeft).toBe(400);
+    expect(paginator.containerPosition).toBe(0);
+  });
+
+  it("allows normal paginated scrolling after the selection is cleared", () => {
+    const { paginator, view } = setup();
+    window.getSelection()!.removeAllRanges();
+    view.selectionPageTurnGuardUntil = 0;
+    paginator.containerPosition = 800;
+    paginator.dispatchEvent(new Event("scroll"));
+    expect(paginator.containerPosition).toBe(800);
+  });
+
+  it("does not lock the publication scroll in continuous layout", () => {
+    const { paginator, settings } = setup();
+    settings.layout = "scrolled";
+    touch("touchstart", 200);
+    document.documentElement.scrollTop = 300;
+    document.dispatchEvent(new Event("scroll"));
+    paginator.containerPosition = 700;
+    paginator.dispatchEvent(new Event("scroll"));
+    expect(document.documentElement.scrollTop).toBe(300);
+    expect(paginator.containerPosition).toBe(700);
+  });
+
+  it("does not restore an old section after the paginator changes documents", () => {
+    const { paginator } = setup();
+    touch("touchstart", 200);
+    paginator.getContents = () => [];
+    paginator.containerPosition = 800;
+    paginator.dispatchEvent(new Event("scroll"));
+    expect(paginator.containerPosition).toBe(800);
   });
 
   it.each(["mouse", "pen"])("does not turn a desktop selection at the page edge with %s", (type) => {
@@ -215,7 +273,13 @@ describe("reader selection event arbitration", () => {
     view.cleanupCallbacks.forEach((cleanup: () => void) => cleanup());
     pointer("pointerdown", "touch");
     document.dispatchEvent(new Event("selectionchange"));
+    document.documentElement.scrollLeft = 400;
+    document.dispatchEvent(new Event("scroll"));
+    paginator.containerPosition = 0;
+    paginator.dispatchEvent(new Event("scroll"));
     vi.advanceTimersByTime(800);
     expect(paginator.next).toHaveBeenCalledOnce();
+    expect(document.documentElement.scrollLeft).toBe(400);
+    expect(paginator.containerPosition).toBe(0);
   });
 });

@@ -38,6 +38,14 @@ For reflowable paginated documents with protection enabled, the plugin handles `
 
 The plugin no longer schedules page turns from mouse selection at viewport edges. All ordinary page-turn entry points continue to consult the shared selection guard.
 
+## Publication scroll lock during selection (2026-09-26)
+
+An Android selection handle can reach the start of a paragraph that continues from a previous paginated page. During the held drag, native selection scrolling can change the EPUB document viewport or Foliate's page container without calling the plugin's page-turn methods. This is distinct from Foliate's `selectionchange` navigation and touch-end snap.
+
+The reader snapshots the publication document's root/body scroll offsets and Foliate's `containerPosition` at touch start. While protected paginated selection owns input, document scroll and the renderer's forwarded scroll events restore those offsets. The lock survives a transiently collapsed native range through the existing touch gesture state. Foliate uses a closed shadow root, so the plugin listens to its public forwarded `scroll` event and uses its public `containerPosition` accessor rather than reaching inside the container. The restore applies only while the document is current in the renderer, since older chapter listeners remain until reader cleanup. Scrolled and fixed layouts, disabled protection, and navigation after the selection clears do not use the lock. Listeners are removed with the publication document.
+
+The event harness simulates repeated cross-page scroll attempts and temporary range collapse. It cannot establish that a specific Android WebView emits every native selection scroll event before painting; device validation remains required.
+
 `tests/reader-selection-events.test.ts` executes the installed Foliate selection-listener code with its private visible-range field exposed to a DOM fixture, alongside the real reader document handlers. It covers forward/backward range extension, held/released gestures, collapsed touch moves, desktop mouse and pen selection, ordinary swipes, and cleanup. This proves event-path arbitration; jsdom does not prove native selection-handle behavior.
 
 ## Required regression matrix
@@ -53,6 +61,7 @@ For changes involving selection or navigation, cover the applicable rows:
 | Pending selection, click outside selection | Pending selection is dismissed without turning the page |
 | Touch selection handle, any page | Holding or dragging at either viewport edge does not navigate |
 | Touch selection handle, vertical movement | Moving a handle toward the top or bottom does not invoke Foliate pagination or repeat page turns |
+| Touch selection crossing a paragraph/page boundary | Repeated document or paginator scroll attempts restore the current page throughout the drag |
 | Mouse or pen selection, any page or edge | Dragging never calls plugin or Foliate pagination |
 | Protection disabled, selection active | Foliate receives `selectionchange`, and plugin page-turn policy does not block solely for selection |
 | Scrolled or fixed layout | Paginated edge-assistance rules are not applied accidentally |

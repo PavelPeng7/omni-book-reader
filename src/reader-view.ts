@@ -54,6 +54,7 @@ import type {
   Bookmark,
   FoliateBook,
   FoliateLocation,
+  FoliateRenderer,
   FoliateSearchItem,
   FoliateTocItem,
   FoliateViewElement,
@@ -1284,7 +1285,7 @@ export class OmniBookReaderView extends FileView {
     const onRelocate = (event: Event): void => this.onRelocate((event as CustomEvent<FoliateLocation>).detail);
     const onLoad = (event: Event): void => {
       const detail = (event as CustomEvent<{ doc: Document; index: number }>).detail;
-      this.attachDocumentEvents(detail.doc, detail.index);
+      this.attachDocumentEvents(detail.doc, detail.index, reader.renderer);
     };
     const onCreateOverlay = (event: Event): void => {
       const index = (event as CustomEvent<{ index: number }>).detail.index;
@@ -1383,7 +1384,7 @@ export class OmniBookReaderView extends FileView {
     await reader.goToTextStart();
   }
 
-  private attachDocumentEvents(document: Document, sectionIndex: number): void {
+  private attachDocumentEvents(document: Document, sectionIndex: number, renderer: FoliateRenderer): void {
     if (this.attachedDocuments.has(document)) return;
     this.attachedDocuments.add(document);
     let selectionFrame: number | null = null;
@@ -1394,7 +1395,42 @@ export class OmniBookReaderView extends FileView {
     let selectingText = false;
     let touchStartedWithSelection = false;
     let suppressClickUntil = 0;
+    const readScrollPosition = () => ({
+      documentLeft: document.documentElement.scrollLeft,
+      documentTop: document.documentElement.scrollTop,
+      bodyLeft: document.body?.scrollLeft ?? 0,
+      bodyTop: document.body?.scrollTop ?? 0,
+      page: renderer?.containerPosition,
+    });
+    let selectionScrollPosition = readScrollPosition();
     const preventSelectionPageTurns = (): boolean => this.plugin.getReaderSettings().preventPageTurnsWhileSelecting;
+    const locksSelectionScroll = (): boolean => preventSelectionPageTurns() && !this.fixedLayout
+      && this.plugin.getReaderSettings().layout === "paginated"
+      && (touchStartedWithSelection || selectingText || this.selectionTouchGestureActive
+        || this.shouldBlockPageTurnForSelection(document));
+    const restoreSelectionScroll = (): void => {
+      const contents = renderer.getContents?.();
+      if (contents && !contents.some((content) => content.doc === document)) return;
+      if (!locksSelectionScroll()) {
+        selectionScrollPosition = readScrollPosition();
+        return;
+      }
+      const root = document.documentElement;
+      if (root.scrollLeft !== selectionScrollPosition.documentLeft) root.scrollLeft = selectionScrollPosition.documentLeft;
+      if (root.scrollTop !== selectionScrollPosition.documentTop) root.scrollTop = selectionScrollPosition.documentTop;
+      if (document.body) {
+        if (document.body.scrollLeft !== selectionScrollPosition.bodyLeft) document.body.scrollLeft = selectionScrollPosition.bodyLeft;
+        if (document.body.scrollTop !== selectionScrollPosition.bodyTop) document.body.scrollTop = selectionScrollPosition.bodyTop;
+      }
+      if (renderer && selectionScrollPosition.page !== undefined
+        && renderer.containerPosition !== selectionScrollPosition.page) {
+        renderer.containerPosition = selectionScrollPosition.page;
+      }
+    };
+    const documentScroll = (event: Event): void => {
+      if (event.target === document || event.target === document.documentElement || event.target === document.body
+        || event.target === document.defaultView) restoreSelectionScroll();
+    };
     const markSelectionInteraction = (duration = 900): void => {
       this.selectionPageTurnGuardUntil = Math.max(this.selectionPageTurnGuardUntil, Date.now() + duration);
     };
@@ -1410,6 +1446,7 @@ export class OmniBookReaderView extends FileView {
       if (event.pointerType !== "touch") capture();
     };
     const touchStart = (event: TouchEvent): void => {
+      selectionScrollPosition = readScrollPosition();
       touchInProgress = true;
       selectingText = false;
       touchStartedWithSelection = preventSelectionPageTurns() && this.shouldBlockPageTurnForSelection(document);
@@ -1430,6 +1467,7 @@ export class OmniBookReaderView extends FileView {
       } : null;
     };
     const touchMove = (event: TouchEvent): void => {
+      restoreSelectionScroll();
       if (event.touches.length !== 1) {
         return;
       }
@@ -1562,6 +1600,7 @@ export class OmniBookReaderView extends FileView {
     };
     const selectionChange = (event: Event): void => {
       if (this.hasActiveReaderSelection(document)) markSelectionInteraction(850);
+      restoreSelectionScroll();
       capture();
       // Foliate schedules its own prev/next from selectionchange after pointer
       // selection, bypassing our navigation lock on both desktop and mobile.
@@ -1624,6 +1663,9 @@ export class OmniBookReaderView extends FileView {
     document.addEventListener("touchcancel", touchCancel, true);
     document.addEventListener("selectstart", selectStart, true);
     document.addEventListener("selectionchange", selectionChange, true);
+    document.addEventListener("scroll", documentScroll, true);
+    document.defaultView?.addEventListener("scroll", documentScroll, true);
+    renderer?.addEventListener("scroll", restoreSelectionScroll);
     document.addEventListener("keydown", keyDown, true);
     document.addEventListener("keyup", keyUp);
     document.addEventListener("wheel", wheel, { passive: false });
@@ -1642,6 +1684,9 @@ export class OmniBookReaderView extends FileView {
       document.removeEventListener("touchcancel", touchCancel, true);
       document.removeEventListener("selectstart", selectStart, true);
       document.removeEventListener("selectionchange", selectionChange, true);
+      document.removeEventListener("scroll", documentScroll, true);
+      document.defaultView?.removeEventListener("scroll", documentScroll, true);
+      renderer?.removeEventListener("scroll", restoreSelectionScroll);
       document.removeEventListener("keydown", keyDown, true);
       document.removeEventListener("keyup", keyUp);
       document.removeEventListener("wheel", wheel);

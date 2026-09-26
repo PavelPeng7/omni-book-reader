@@ -31,6 +31,7 @@ The [`README.md`](../../README.md) is the user-facing feature overview. When beh
 - The "Prevent page turns while selecting" reader option is enabled by default and available in both settings interfaces. When enabled, a native or pending text selection owns navigation until it is saved or cancelled on desktop and mobile; selection drags in any direction never turn paginated pages or repeat page turns, and clicking outside the selection cancels it.
 - When the option is disabled, selection-based navigation is handed back to Foliate and ordinary page-turn controls are no longer blocked solely by a selection. Clicking outside a pending selection still dismisses it.
 - With the option enabled, Android vertical selection-handle drags remain on the current page even away from horizontal edges and after release; dependency-level selection-change navigation must obey this constraint too. Cross-page passages are highlighted in separate selections.
+- While an Android selection handle remains held, crossing a paginated paragraph boundary must not scroll the publication viewport or Foliate page container, including when the native range briefly collapses.
 - Interface changes remain coherent with the Botanical / Organic Serif system in [`../../AGENTS.md`](../../AGENTS.md).
 - Production releases contain a non-empty `main.js`, `manifest.json`, and `styles.css` with consistent versions.
 

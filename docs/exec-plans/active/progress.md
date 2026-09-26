@@ -5,6 +5,7 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 ## Current state
 
 - Latest completed release plan: [`../completed/release-1.0.3.md`](../completed/release-1.0.3.md).
+- Active release plan: [`release-1.0.4.md`](release-1.0.4.md) for the Android selection-handle scroll fix.
 - Configurable selection navigation: [`../completed/configurable-selection-page-turns.md`](../completed/configurable-selection-page-turns.md), implementation and full verification complete.
 - Selection navigation change: [`../completed/selection-never-turns-pages.md`](../completed/selection-never-turns-pages.md), implementation and full verification complete.
 - Android selection fix: [`../completed/android-selection-paginator.md`](../completed/android-selection-paginator.md), event-level regression and fix complete; quick/full verification passed (82 passed, 1 skipped). Native device validation remains under TD-2026-001.
@@ -14,6 +15,7 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 - Architecture: current runtime, persistence, export, safety, and release boundaries documented in `ARCHITECTURE.md`.
 - Verification: `npm run verify:quick` and `npm run verify:full` are the standard gates.
 - Active feature plan: [`mobile-selection-navigation-lock.md`](mobile-selection-navigation-lock.md) for GitHub Issue #3.
+- Android selection scroll follow-up: [`../completed/android-selection-scroll-lock.md`](../completed/android-selection-scroll-lock.md), implementation and automated verification complete; native Android validation remains under TD-2026-001.
 - Latest completed feature plan: [`../completed/highlight-list-readability.md`](../completed/highlight-list-readability.md) for GitHub Issue #7.
 
 ## Workflow
