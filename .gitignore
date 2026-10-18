@@ -4,5 +4,6 @@ main.js
 main.js.map
 dist/
 .cover-cache/
+/library-location.json
 *.log
 .DS_Store

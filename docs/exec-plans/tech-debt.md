@@ -4,6 +4,26 @@ Record intentional compromises that have a concrete maintenance, reliability, se
 
 ## Open items
 
+### TD-2026-005: Managed-library native acceptance remains unverified
+
+- Status: Open
+- Area: managed library, Obsidian desktop/mobile integration
+- Introduced: 2026-10-18, `docs/exec-plans/completed/file-organization.md`
+- Impact: 23 simulated-Vault integration tests verify storage and failure semantics, but do not exercise real FileManager link updates, platform trash, workspace leaf replacement, narrow/wide layout, keyboard/focus or reduced-motion behavior on a native Obsidian installation.
+- Reason accepted: this environment exposes no controllable Obsidian desktop/mobile session; implementation, TypeScript, lint, 121 automated tests and local production validation passed. Existing EPUB fixture test remains skipped.
+- Exit criteria: verify import/resume, custom cover, exports with manual text and local images, rename/move with location links, delete cancel/confirm/failure and root relocation on desktop and mobile; exercise narrow/wide widths, keyboard focus and reduced motion. Record actual results before treating tracker acceptance as fully complete.
+- Owner/trigger: native acceptance remains open for the managed-library release. The user explicitly requested publication after the automated implementation and flicker fix; release notes must disclose the missing native desktop/mobile acceptance. No live user books were moved or recycled by implementation tests.
+
+### TD-2026-004: Conflicting files in legacy annotation folders
+
+- Status: Open
+- Area: annotation export path migration
+- Introduced: 2026-09-25, `docs/exec-plans/active/short-annotation-export-names.md`
+- Impact: if a user added `高亮.md` or `笔记.md` to an old book-name export folder, the plugin moves its own export pair into a short folder but leaves the old folder and conflicting file in place; that older folder name can still affect mobile Git sync.
+- Reason accepted: renaming the entire folder would make the conflicting user file occupy a generated document destination; the plugin must not overwrite it.
+- Exit criteria: a safe conflict-resolution flow can shorten the folder without overwriting or silently renaming user files.
+- Owner/trigger: revisit if a user reports a remaining long legacy folder after migration.
+
 ### TD-2026-003: Verification wrappers fail on Windows Node 24
 
 - Status: Resolved (2026-09-23)

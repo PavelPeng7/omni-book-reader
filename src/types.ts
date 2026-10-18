@@ -92,6 +92,10 @@ export interface ReadingStats {
 }
 
 export interface BookState {
+  /** Stable identity in the managed library; paths are only runtime locations. */
+  bookId?: string;
+  title?: string;
+  author?: string;
   sourceSignature: SourceSignature;
   position?: ReadingPosition;
   bookmarks: Bookmark[];

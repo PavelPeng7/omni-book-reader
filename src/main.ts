@@ -1,8 +1,10 @@
-import { App, Menu, Modal, Notice, Plugin, TFile, normalizePath, setIcon, type Command } from "obsidian";
+import { App, FuzzySuggestModal, Menu, Modal, Notice, Plugin, TFile, normalizePath, setIcon, type Command } from "obsidian";
 import { AnnotationDocumentService, type AnnotationDocumentInput } from "./annotation-documents";
 import { OMNI_BOOK_READER_BOOKSHELF_VIEW_TYPE, OmniBookReaderBookshelfView } from "./bookshelf-view";
 import { uiLocale, uiText } from "./i18n";
-import { loadLegacyPluginData } from "./legacy-plugin-data";
+import { ManagedLibrary } from "./managed-library";
+import { saveBlobToVault } from "./media-utils";
+import { exportChapterMarkdown, type ChapterExportInput } from "./chapter-export";
 import { OMNI_BOOK_READER_VIEW_TYPE, OmniBookReaderView } from "./reader-view";
 import { OmniBookReaderSettingTab } from "./settings-ui";
 import { ReaderDataStore } from "./store";
@@ -58,43 +60,26 @@ class RecentReadingModal extends Modal {
 
 export default class OmniBookReaderPlugin extends Plugin {
   store!: ReaderDataStore;
+  library!: ManagedLibrary;
+  private libraryRefreshTimer: number | null = null;
   private annotationDocuments!: AnnotationDocumentService;
   private commandLabels: Array<{ command: Command; zh: string; en: string }> = [];
   private bookshelfRibbonEl: HTMLElement | null = null;
 
   async onload(): Promise<void> {
-    this.store = new ReaderDataStore(this, (error) => {
-      console.error("[Omni Book Reader] Failed to persist data", error);
+    const locationPath = normalizePath(`${this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`}/library-location.json`);
+    const adapter = this.app.vault.adapter;
+    this.library = new ManagedLibrary(this.app.vault, this.app.fileManager, {
+      loadData: async () => await adapter.exists(locationPath) ? JSON.parse(await adapter.read(locationPath)) as unknown : null,
+      saveData: async (value) => { await adapter.write(locationPath, JSON.stringify(value)); },
+    });
+    this.store = new ReaderDataStore(this.library, (error) => {
+      new Notice(error instanceof Error ? error.message : "Could not save library data");
     });
     await this.store.load();
-    try {
-      const pluginsDirectory = normalizePath(`${this.app.vault.configDir}/plugins`);
-      const currentPluginDirectory = normalizePath(this.manifest.dir ?? `${pluginsDirectory}/${this.manifest.id}`);
-      const legacyData = await loadLegacyPluginData(
-        this.app.vault.adapter,
-        pluginsDirectory,
-        currentPluginDirectory,
-        this.manifest.id,
-      );
-      if (legacyData.length && this.store.mergeLegacyData(legacyData)) {
-        await this.store.flush();
-        new Notice(this.text(
-          "已从旧插件目录恢复阅读进度、高亮和统计数据",
-          "Recovered reading progress, highlights, and statistics from a previous plugin folder.",
-        ));
-      }
-    } catch (error) {
-      console.error("[Omni Book Reader] Could not recover data from a previous plugin folder", error);
-    }
     const t = (zh: string, en: string): string => this.text(zh, en);
-    this.annotationDocuments = new AnnotationDocumentService(this.app.vault);
-    try {
-      await this.annotationDocuments.migrateLegacyProtocolLinks(
-        Object.values(this.store.snapshot.books).map((state) => state.annotationDocuments),
-      );
-    } catch (error) {
-      console.error("[Omni Book Reader] Could not migrate legacy CFI links", error);
-    }
+    this.annotationDocuments = new AnnotationDocumentService(this.app.vault, this.app.fileManager);
+    for (const problem of this.library.problems) new Notice(problem);
 
     this.registerView(OMNI_BOOK_READER_VIEW_TYPE, (leaf) => new OmniBookReaderView(leaf, this));
     this.registerView(OMNI_BOOK_READER_BOOKSHELF_VIEW_TYPE, (leaf) => new OmniBookReaderBookshelfView(leaf, this));
@@ -106,7 +91,7 @@ export default class OmniBookReaderPlugin extends Plugin {
     }
 
     this.registerObsidianProtocolHandler("omni-book-reader", (params) => {
-      void this.openProtocolLocation(params.path, params.cfi, params.sourceVault ?? params.vault);
+      void this.openProtocolLocation(params.path, params.cfi, params.sourceVault ?? params.vault, params.bookId);
     });
     this.registerDomEvent(document, "click", (event: MouseEvent) => {
       const target = event.target;
@@ -126,6 +111,7 @@ export default class OmniBookReaderPlugin extends Plugin {
         url.searchParams.get("path") ?? undefined,
         url.searchParams.get("cfi") ?? undefined,
         url.searchParams.get("sourceVault") ?? url.searchParams.get("vault") ?? undefined,
+        url.searchParams.get("bookId") ?? undefined,
       );
     }, { capture: true });
 
@@ -222,29 +208,29 @@ export default class OmniBookReaderPlugin extends Plugin {
       },
     }, "Omni Book Reader：重新打开阅读引导", "Omni Book Reader: Reopen reader tutorial");
 
-    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
-      if (file instanceof TFile && file.extension.toLowerCase() === "epub") {
-        this.store.renameBook(oldPath, file.path);
-      }
-    }));
-
+    this.addUiCommand({ id: "import-epub", callback: () => this.chooseImport() }, "导入 EPUB 到书库", "Import EPUB into library");
+    this.addUiCommand({ id: "refresh-library", callback: () => { void this.refreshLibrary(); } }, "刷新书库", "Refresh library");
+    const changed = () => {
+      this.store.reconcile(this.library.project(this.store.snapshot.books));
+      if (this.libraryRefreshTimer !== null) window.clearTimeout(this.libraryRefreshTimer);
+      this.libraryRefreshTimer = window.setTimeout(() => { this.libraryRefreshTimer = null; void this.refreshLibrary(); }, 350);
+    };
+    this.registerEvent(this.app.vault.on("create", changed));
+    this.registerEvent(this.app.vault.on("delete", changed));
+    this.registerEvent(this.app.vault.on("rename", changed));
+    this.registerEvent(this.app.vault.on("modify", (file) => { if (file.name === "book.json") changed(); }));
     this.registerEvent(this.app.workspace.on("file-menu", (menu: Menu, file) => {
       if (!(file instanceof TFile) || file.extension.toLowerCase() !== "epub") return;
       const state = this.store.getBook(file.path);
-      menu.addSeparator();
-      menu.addItem((item) => item
-        .setTitle(state?.hiddenFromBookshelf
-          ? this.text("Omni Book Reader：加入书架", "Omni Book Reader: Add to bookshelf")
-          : this.text("Omni Book Reader：从书架中移除", "Omni Book Reader: Remove from bookshelf"))
-        .setIcon(state?.hiddenFromBookshelf ? "library-big" : "eye-off")
-        .onClick(() => {
-          const book = this.store.ensureBook(file.path, { size: file.stat.size, mtime: file.stat.mtime });
-          book.hiddenFromBookshelf = state?.hiddenFromBookshelf ? undefined : true;
+      if (!state) menu.addItem((item) => item
+        .setTitle(this.text("导入书库（移动 EPUB）", "Import into library (move EPUB)"))
+        .setIcon("import").onClick(() => { void this.importEpub(file); }));
+      else menu.addItem((item) => item
+        .setTitle(state.hiddenFromBookshelf ? this.text("加入书架", "Show on bookshelf") : this.text("从书架中移除", "Hide from bookshelf"))
+        .setIcon("library").onClick(() => {
+          state.hiddenFromBookshelf = !state.hiddenFromBookshelf || undefined;
           this.store.markChanged(0);
           this.refreshBookshelves();
-          new Notice(book.hiddenFromBookshelf
-            ? this.text("已从 Omni Book Reader 书架中移除", "Removed from the Omni Book Reader bookshelf")
-            : this.text("已加入 Omni Book Reader 书架", "Added to the Omni Book Reader bookshelf"));
         }));
     }));
 
@@ -252,6 +238,7 @@ export default class OmniBookReaderPlugin extends Plugin {
   }
 
   onunload(): void {
+    if (this.libraryRefreshTimer !== null) window.clearTimeout(this.libraryRefreshTimer);
     void this.store?.flush();
     void this.annotationDocuments?.flush();
   }
@@ -260,8 +247,74 @@ export default class OmniBookReaderPlugin extends Plugin {
     return this.store.settings;
   }
 
-  getCoverCacheDirectory(): string {
-    return normalizePath(`${this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`}/.cover-cache`);
+  getLibraryRoot(): string { return this.library.root; }
+
+  getManagedFiles(): TFile[] { return this.library.filesList; }
+
+  chooseImport(): void {
+    const files = this.app.vault.getFiles().filter((file) => file.extension.toLowerCase() === "epub" && !this.store.getBook(file.path));
+    new ImportBookModal(this.app, files, this.text("导入 EPUB（原文件将移动到书库）", "Import EPUB (original moves into the library)"), (file) => { void this.importEpub(file); }).open();
+  }
+
+  async importEpub(file: TFile): Promise<void> {
+    try {
+      await this.store.flush();
+      const imported = await this.library.importBook(file);
+      await this.library.run(() => this.library.discover());
+      this.store.reconcile(this.library.project(this.store.snapshot.books));
+      this.refreshBookshelves();
+      await this.openEpub(imported);
+    } catch (error) { this.reportLibraryError(error); }
+  }
+
+  async refreshLibrary(): Promise<void> {
+    try {
+      await this.store.flush();
+      await this.library.run(() => this.library.discover());
+      this.store.reconcile(this.library.project(this.store.snapshot.books));
+      this.refreshBookshelves();
+      for (const problem of this.library.problems) new Notice(problem);
+    } catch (error) { this.reportLibraryError(error); }
+  }
+
+  async relocateLibrary(path: string): Promise<void> {
+    await this.store.flush();
+    await this.library.relocate(path);
+    this.store.reconcile(this.library.project(this.store.snapshot.books));
+    this.refreshBookshelves();
+  }
+
+  async trashManagedBook(file: TFile): Promise<void> {
+    const id = this.library.book(file.path).document.bookId;
+    // Clearing these leaves stops statistics timers and captures their final state.
+    for (const leaf of this.app.workspace.getLeavesOfType(OMNI_BOOK_READER_VIEW_TYPE)) {
+      if (leaf.view instanceof OmniBookReaderView && leaf.view.file === file) await leaf.setViewState({ type: "empty" });
+    }
+    await this.store.flush();
+    await this.library.trashBook(id);
+    this.store.removeBook(file.path);
+    this.refreshBookshelves();
+  }
+
+  exportManagedChapter(input: ChapterExportInput): Promise<string> {
+    const id = this.library.book(input.sourceFile.path).document.bookId;
+    return this.library.withBook(id, (folder, file, bookId) => exportChapterMarkdown({ ...input, sourceFile: file, outputFolder: `${folder}/章节导出`, bookId }));
+  }
+
+  saveManagedImage(file: TFile, blob: Blob, name: string): Promise<string> {
+    const id = this.library.book(file.path).document.bookId;
+    return this.library.withBook(id, async (folder) => {
+      const directory = `${folder}/图片`;
+      let path = `${directory}/${name}`;
+      let suffix = 1;
+      while (this.app.vault.getAbstractFileByPath(path)) path = `${directory}/${suffix++}-${name}`;
+      await saveBlobToVault(this.app.vault, path, blob);
+      return path;
+    });
+  }
+
+  private reportLibraryError(error: unknown): void {
+    new Notice(error instanceof Error ? error.message : this.text("书库操作失败，原资料保留", "Library operation failed; original data preserved"));
   }
 
   updateReaderSettings(patch: Partial<ReaderSettings>): void {
@@ -285,14 +338,16 @@ export default class OmniBookReaderPlugin extends Plugin {
   }
 
   syncAnnotationDocuments(input: AnnotationDocumentInput): Promise<void> {
-    return this.annotationDocuments.sync({
-      ...input,
+    const id = this.library.book(input.sourceFile.path).document.bookId;
+    return this.library.withBook(id, (folder, file, bookId) => this.annotationDocuments.sync({
+      ...input, sourceFile: file, outputFolder: folder, bookId,
       exportTemplate: this.store.settings.exportTemplate,
       customExportTemplatePath: this.store.settings.customExportTemplatePath,
-    });
+    }));
   }
 
   async openEpub(file: TFile): Promise<void> {
+    if (!this.store.getBook(file.path)) { new Notice(this.text("请先导入书库", "Import this book into the library first")); return; }
     const leaf = this.app.workspace.getLeaf(true);
     await leaf.setViewState({
       type: OMNI_BOOK_READER_VIEW_TYPE,
@@ -316,12 +371,14 @@ export default class OmniBookReaderPlugin extends Plugin {
     }
   }
 
-  private async openProtocolLocation(pathValue: string | undefined, cfiValue: string | undefined, vaultValue: string | undefined): Promise<void> {
+  private async openProtocolLocation(pathValue: string | undefined, cfiValue: string | undefined, vaultValue: string | undefined, bookId?: string): Promise<void> {
     if (vaultValue && vaultValue !== this.app.vault.getName()) {
       new Notice(this.text(`CFI 链接属于其他 Vault：${vaultValue}`, `This CFI link belongs to another Vault: ${vaultValue}`));
       return;
     }
-    const path = normalizeVaultPath(pathValue ?? "");
+    let path: string;
+    try { path = bookId ? this.library.book(bookId).file.path : normalizeVaultPath(pathValue ?? ""); }
+    catch (error) { this.reportLibraryError(error); return; }
     const cfi = String(cfiValue ?? "").trim();
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile) || file.extension.toLowerCase() !== "epub") {
@@ -364,4 +421,14 @@ export default class OmniBookReaderPlugin extends Plugin {
     this.bookshelfRibbonEl.setAttribute("aria-label", label);
     this.bookshelfRibbonEl.setAttribute("title", label);
   }
+}
+
+class ImportBookModal extends FuzzySuggestModal<TFile> {
+  constructor(app: App, private readonly files: TFile[], placeholder: string, private readonly choose: (file: TFile) => void) {
+    super(app);
+    this.setPlaceholder(placeholder);
+  }
+  getItems(): TFile[] { return this.files; }
+  getItemText(file: TFile): string { return file.path; }
+  onChooseItem(file: TFile): void { this.choose(file); }
 }

@@ -12,7 +12,7 @@ import {
 } from "obsidian";
 import type { AnnotationDocumentInput } from "./annotation-documents";
 import { annotationValueAtPoint } from "./annotation-hit-test";
-import { exportChapterMarkdown } from "./chapter-export";
+import type { ChapterExportInput } from "./chapter-export";
 import { readEpubBinaryCandidates } from "./epub-binary";
 import { installBlobUrlRegistry } from "./blob-url-registry";
 import { extractEpubCover } from "./epub-cover";
@@ -29,7 +29,7 @@ import {
 } from "./foliate-runtime-patches";
 import { installFoliateCustomElementGuard } from "./foliate-custom-element-guard";
 import { uiLocale, uiText } from "./i18n";
-import { extensionForBlob, safeFileName, saveBlobToVault, sourceToBlob } from "./media-utils";
+import { extensionForBlob, safeFileName, sourceToBlob } from "./media-utils";
 import { applyReflowableLayout, resolveViewportWidth } from "./reader-layout";
 import { ReaderUiState } from "./reader-ui-state";
 import {
@@ -148,6 +148,8 @@ export interface ReaderPluginHost extends SettingsHost {
   store: ReaderDataStore;
   updateReaderSettings(patch: Partial<ReaderSettings>): void;
   syncAnnotationDocuments(input: AnnotationDocumentInput): Promise<void>;
+  exportManagedChapter?(input: ChapterExportInput): Promise<string>;
+  saveManagedImage?(file: TFile, blob: Blob, name: string): Promise<string>;
 }
 
 function iconButton(parent: HTMLElement, icon: string, label: string): HTMLButtonElement {
@@ -1097,6 +1099,10 @@ export class OmniBookReaderView extends FileView {
   }
 
   private async loadBook(file: TFile): Promise<void> {
+    if (!this.plugin.store.getBook(file.path)) {
+      new Notice(this.text("请从书架导入 EPUB 后阅读，原文件会移动到书库。", "Import this EPUB from the bookshelf first; the original will move into the library."));
+      return;
+    }
     await this.ensureFoliateRuntimeCompatibility();
     const fileKey = `${file.path}:${file.stat.size}:${file.stat.mtime}`;
     if (this.reader && this.loadedFileKey === fileKey) return;
@@ -1206,6 +1212,8 @@ export class OmniBookReaderView extends FileView {
       this.startReadingStats();
       this.bookTitle = formatLanguageValue(reader.book.metadata?.title) || file.basename;
       this.bookAuthor = formatLanguageValue(reader.book.metadata?.author);
+      this.bookState.title = this.bookTitle;
+      this.bookState.author = this.bookAuthor;
       this.titleEl?.setText(this.bookTitle);
       this.sidebarBookTitleEl?.setText(this.bookTitle);
       this.sidebarBookAuthorEl?.setText(this.bookAuthor || this.text("作者信息未提供", "Author not provided"));
@@ -1889,7 +1897,8 @@ export class OmniBookReaderView extends FileView {
       return;
     }
     try {
-      const path = await exportChapterMarkdown({
+      if (!this.plugin.exportManagedChapter) throw new Error("Managed export is unavailable");
+      const path = await this.plugin.exportManagedChapter({
         vault: this.app.vault,
         sourceFile: this.file,
         document: content.doc,
@@ -1913,18 +1922,9 @@ export class OmniBookReaderView extends FileView {
   private openImagePreview(source: string, alt: string): void {
     if (!this.file) return;
     new ImagePreviewModal(this.app, source, alt, this.language(), async (blob) => {
-      const parent = this.file?.parent?.path ?? "";
-      const folder = `${parent}/${this.file?.basename ?? "EPUB"}/图片`;
+      if (!this.file || !this.plugin.saveManagedImage) throw new Error("Managed image export is unavailable");
       const base = safeFileName(alt || `${this.currentChapter()}-${Date.now()}`, this.text("书内图片", "book-image"));
-      const extension = extensionForBlob(blob, source);
-      let path = `${folder}/${base}.${extension}`;
-      let suffix = 2;
-      while (this.app.vault.getAbstractFileByPath(path)) {
-        path = `${folder}/${base}-${suffix}.${extension}`;
-        suffix += 1;
-      }
-      await saveBlobToVault(this.app.vault, path, blob);
-      return path;
+      return this.plugin.saveManagedImage(this.file, blob, `${base}.${extensionForBlob(blob, source)}`);
     }).open();
   }
 

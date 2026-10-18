@@ -16,11 +16,15 @@ function escapeMarkdown(value: string): string {
   return value.replace(/([\\`*_[\]<>])/g, "\\$1");
 }
 
-function inline(node: Node): string {
+function inline(node: Node, images: ReadonlyMap<Element, string> = new Map()): string {
   if (node.nodeType === Node.TEXT_NODE) return escapeMarkdown(node.textContent ?? "");
   if (node.nodeType !== Node.ELEMENT_NODE) return "";
   const element = node as Element;
-  const content = Array.from(element.childNodes).map(inline).join("");
+  if (element.matches("img")) {
+    const path = images.get(element);
+    return path ? `![${escapeMarkdown(element.getAttribute("alt") || "书内图片")}](${encodeURI(path)})` : "";
+  }
+  const content = Array.from(element.childNodes).map((child) => inline(child, images)).join("");
   if (element.matches("strong,b")) return `**${content}**`;
   if (element.matches("em,i")) return `*${content}*`;
   if (element.matches("code")) return `\`${content.replace(/`/g, "\\`")}\``;
@@ -31,6 +35,8 @@ function inline(node: Node): string {
 
 async function block(node: Element, imagePath: (image: Element) => Promise<string>): Promise<string> {
   if (node.matches("script,style,iframe,object,embed,form,nav")) return "";
+  const images = new Map<Element, string>();
+  for (const image of Array.from(node.querySelectorAll("img"))) images.set(image, await imagePath(image));
   if (node.matches("img")) {
     const path = await imagePath(node);
     return path ? `![${escapeMarkdown(node.getAttribute("alt") || "书内图片")}](${encodeURI(path)})\n\n` : "";
@@ -40,11 +46,11 @@ async function block(node: Element, imagePath: (image: Element) => Promise<strin
     for (const child of Array.from(node.children)) output += await block(child, imagePath);
     return output;
   };
-  if (/^H[1-6]$/.test(node.tagName)) return `${"#".repeat(Number(node.tagName[1]))} ${inline(node).trim()}\n\n`;
-  if (node.matches("p")) return `${inline(node).trim()}\n\n`;
-  if (node.matches("blockquote")) return `${inline(node).trim().split("\n").map((line) => `> ${line}`).join("\n")}\n\n`;
+  if (/^H[1-6]$/.test(node.tagName)) return `${"#".repeat(Number(node.tagName[1]))} ${inline(node, images).trim()}\n\n`;
+  if (node.matches("p")) return `${inline(node, images).trim()}\n\n`;
+  if (node.matches("blockquote")) return `${inline(node, images).trim().split("\n").map((line) => `> ${line}`).join("\n")}\n\n`;
   if (node.matches("pre")) return `\`\`\`\n${node.textContent?.trim() ?? ""}\n\`\`\`\n\n`;
-  if (node.matches("li")) return `- ${inline(node).trim()}\n`;
+  if (node.matches("li")) return `- ${inline(node, images).trim()}\n`;
   if (node.matches("hr")) return "---\n\n";
   return children();
 }
@@ -61,6 +67,8 @@ function merge(existing: string, generated: string): string {
 }
 
 export interface ChapterExportInput {
+  outputFolder?: string;
+  bookId?: string;
   vault: Vault;
   sourceFile: TFile;
   document: Document;
@@ -74,12 +82,15 @@ export interface ChapterExportInput {
 
 export async function exportChapterMarkdown(input: ChapterExportInput): Promise<string> {
   const parent = input.sourceFile.parent?.path ?? "";
-  const folder = normalizePath(`${parent}/${input.sourceFile.basename}/章节导出`);
+  const folder = input.outputFolder ?? normalizePath(`${parent}/${input.sourceFile.basename}/章节导出`);
   const chapterName = safeFileName(input.chapter, `章节-${input.sectionIndex + 1}`);
   const assetFolder = normalizePath(`${folder}/assets`);
   await ensureVaultFolder(input.vault, assetFolder);
   let imageIndex = 0;
+  const savedImages = new WeakMap<Element, string>();
   const imagePath = async (image: Element): Promise<string> => {
+    const saved = savedImages.get(image);
+    if (saved) return saved;
     const imageElement = image as HTMLImageElement;
     const source = imageElement.currentSrc || imageElement.src || image.getAttribute("src") || "";
     if (!source) return "";
@@ -88,7 +99,9 @@ export async function exportChapterMarkdown(input: ChapterExportInput): Promise<
     const filename = `${chapterName}-${imageIndex}.${extensionForBlob(blob, source)}`;
     const path = normalizePath(`${assetFolder}/${filename}`);
     await saveBlobToVault(input.vault, path, blob);
-    return path;
+    const relative = `assets/${filename}`;
+    savedImages.set(image, relative);
+    return relative;
   };
   let body = "";
   for (const child of Array.from(input.document.body.children)) body += await block(child, imagePath);
@@ -96,12 +109,12 @@ export async function exportChapterMarkdown(input: ChapterExportInput): Promise<
     .filter((item) => item.sectionIndex === input.sectionIndex)
     .sort((left, right) => left.createdAt - right.createdAt)
     .map((item) => {
-      const link = buildCfiLink(input.vaultName, input.sourceFile.path, item.cfi);
+      const link = buildCfiLink(input.vaultName, input.sourceFile.path, item.cfi, input.bookId);
       return `> ${item.text.replace(/\r?\n/g, "\n> ")}\n\n${item.note ? `笔记：${item.note}\n\n` : ""}[回到原文](${link})`;
     }).join("\n\n---\n\n");
   const generated = [
     `# ${input.chapter}`,
-    `书籍：[[${input.sourceFile.path}]]${input.author ? `${MARKDOWN_HARD_BREAK}作者：${input.author}` : ""}`,
+    `书籍：${input.outputFolder ? `[${escapeMarkdown(input.sourceFile.basename)}](../${encodeURIComponent(input.sourceFile.name)})` : `[[${input.sourceFile.path}]]`}${input.author ? `${MARKDOWN_HARD_BREAK}作者：${input.author}` : ""}`,
     body.trim(),
     annotations ? `## 当前章节标注\n\n${annotations}` : "",
   ].filter(Boolean).join("\n\n");

@@ -4,7 +4,7 @@ This document describes the current production architecture. Update it when a ch
 
 ## System context
 
-Omni Book Reader is a local-first Obsidian plugin for EPUB 2/3 files. Obsidian owns the Vault, workspace, commands, and plugin lifecycle. `foliate-js` parses and renders EPUB publications. The plugin stores reader state through Obsidian's plugin data API and writes user-requested Markdown and media exports into the Vault.
+Omni Book Reader is a local-first Obsidian plugin for EPUB 2/3 files. Obsidian owns the Vault, workspace, commands, and plugin lifecycle. `foliate-js` parses and renders EPUB publications. The plugin stores reader settings and per-book state in a visible managed library in the Vault, alongside EPUBs, covers, and Markdown/media exports. A separate installation-local location file bootstraps the library without reading or overwriting legacy plugin data.
 
 The plugin does not require a backend service. EPUB content, reading state, annotations, and exports remain local unless the user's Obsidian setup synchronizes them externally.
 
@@ -18,7 +18,7 @@ The plugin does not require a backend service. EPUB content, reading state, anno
 | EPUB pipeline | `src/epub-loader.ts`, `src/epub-binary.ts`, `src/foliate-*.ts`, `src/blob-url-*.ts` | Load publications, normalize blob-backed resources, and adapt Foliate behavior for Obsidian desktop/mobile runtimes |
 | Safety boundary | `src/sanitizer.ts` | Remove executable or remote publication content before it enters the rendered document |
 | Layout and appearance | `src/reader-layout.ts`, `src/reader-style.ts`, `src/settings-ui.ts`, `styles.css` | Reader layout, publication CSS, user settings, and the plugin design system |
-| State | `src/store.ts`, `src/defaults.ts`, `src/types.ts`, `src/legacy-plugin-data.ts` | Schema, normalization, persistence, defaults, and migration from earlier plugin directories |
+| State | `src/managed-library.ts`, `src/store.ts`, `src/defaults.ts`, `src/types.ts` | Managed library, stable identity, per-book persistence, normalization, and defaults; legacy import helpers are not called by the runtime |
 | Exports | `src/annotation-documents.ts`, `src/chapter-export.ts`, `src/media-utils.ts` | Managed Markdown documents, chapter exports, images, filenames, and Vault writes |
 | Utilities | `src/i18n.ts`, `src/search-session.ts`, `src/utils.ts` | Localization, stale-search protection, identifiers, paths, and shared guards |
 
@@ -34,14 +34,16 @@ Keep modules focused. `main.ts` coordinates Obsidian integration; it should not 
 4. The sanitizer removes dangerous elements, URLs, and unsupported publication behavior.
 5. The reader applies user layout and typography settings, restores the saved position, and renders navigation state.
 
-### Persist reader state
+### Manage books and persist reader state
 
-1. UI actions update the in-memory `ReaderDataStore` model.
-2. Store normalization protects the persisted schema from malformed, legacy, or out-of-range values.
-3. Debounced writes use Obsidian's plugin data storage.
-4. The store flushes pending changes at lifecycle boundaries where data loss would otherwise be possible.
+1. The user explicitly imports a Vault EPUB. ManagedLibrary compares current binary content, reuses an identical managed book without moving the duplicate, or moves a new EPUB into a readable title/short-ID folder under the configurable `My Reader` root.
+2. A versioned per-book document stores the full stable bookId, relative EPUB reference, content digest, metadata, progress, annotations, bookmarks and statistics. Global settings have their own versioned document in the root; plugin-local `library-location.json` only bootstraps that root. Existing `data.json` and old exports/caches are left untouched.
+3. ReaderDataStore retains the established path-based in-memory API for reader integration. ManagedLibrary projects that API onto stable book identities and per-book documents; folder-relative references are serialized at the storage boundary and resolved on discovery. `reconcile` preserves live reader object identity while retargeting paths or loading refreshed state.
+4. Debounced writes, exports, cover writes, imports, whole-book trash and root moves share a serialized library operation queue. Persistence checks identities and expected on-disk text before writing; external changes, invalid JSON and duplicate identities cannot be silently overwritten. Healthy books can still save when another book is invalid.
+5. Vault rename/create/delete events rebase live paths and debounce rediscovery. Whole-book trash closes matching readers and flushes final activity before recycling the entire directory. Queued obsolete snapshots cannot recreate removed books.
+6. Root relocation flushes pending writes, rejects nonempty or overlapping targets, renames the complete library and then commits the new root. A pending-root bootstrap journal recovers an interrupted rename on startup; ordinary failures roll back. Empty target directories may be recycled through Obsidian before the move.
 
-The schema is defined in `src/types.ts`. Any schema change must include normalization or migration behavior and tests for old or malformed data.
+The on-disk managed-library format is version 1. The ReaderData schema in memory remains a normalization facade, not the old on-disk persistence format. New-format errors are isolated and preserved; earlier plugin-directory recovery and export-path migrations are deliberately not run. See [managed-library design](docs/design-docs/systems/managed-library-storage.md).
 
 ### Arbitrate selection and navigation
 
@@ -59,6 +61,8 @@ Physical left/right input is not the same as logical previous/next content in RT
 4. Existing user-authored content outside managed blocks is preserved, and unchanged exports are not rewritten.
 
 Managed-block preservation is a product invariant. Changes to marker handling require focused regression tests.
+
+`AnnotationDocumentService` receives the managed book folder from the library and writes `高亮.md` and `笔记.md` there, without legacy path migration. Chapters, local assets, and saved book images also remain inside the same book folder. Custom covers are copied into that folder while their source images remain untouched. Stored resource associations and chapter assets use relative paths; new CFI links use bookId plus source-Vault metadata. Existing Vault-specific links in copied documents are not rewritten across Vaults. Generated per-book directory names remain below 100 UTF-8 bytes, while user-owned parent paths and original EPUB names are preserved.
 
 ## Security and compatibility constraints
 
@@ -89,6 +93,8 @@ Vitest runs focused unit and DOM tests under `tests/`. ESLint covers source and 
 
 The GitHub release workflow uses Node.js 20 and `npm ci`. Local verification should use a supported Node version declared in `package.json`.
 After uploading release files, the workflow also checks that GitHub's release-by-tag API consistently exposes `main.js`, `manifest.json`, and `styles.css`. This remote check catches releases whose assets exist by release ID but appear missing to version-based consumers.
+
+New release tags include `docs/release-notes/<version>.md`; the workflow publishes those upgrade instructions with the release, including any incompatible storage changes.
 
 ## Change rules
 

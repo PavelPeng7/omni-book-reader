@@ -4,11 +4,15 @@ Design documents explain how and why a change is implemented. Product behavior b
 
 ## Current design sources
 
+- [`file-organization-discovery.md`](file-organization-discovery.md): completed file organization interview and confirmed decisions, published as Issue #9.
+- [`systems/managed-library-storage.md`](systems/managed-library-storage.md): implemented managed-library storage, per-book ownership, portable resources, safe relocation, compatibility trade-offs and automated verification; native acceptance tracked separately.
+
 - [`ux-discovery.md`](ux-discovery.md): mobile annotation UX interview, confirmed Android selection behavior, and remaining candidate improvements.
 
 - [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md): runtime boundaries, core flows, invariants, build, and release model.
 - [`../../AGENTS.md`](../../AGENTS.md): repository workflow and user-interface design constraints.
 - [`systems/reader-selection-navigation.md`](systems/reader-selection-navigation.md): selection ownership, navigation arbitration, chapter boundaries, directionality, and regression coverage.
+- [`systems/annotation-export-paths.md`](systems/annotation-export-paths.md): short generated annotation paths and existing-document migration.
 - [`systems/release-artifacts.md`](systems/release-artifacts.md): tagged source, generated bundle, attached assets, and remote verification.
 - [`../obsidian-review-versions-json.md`](../obsidian-review-versions-json.md): investigation notes for the Obsidian review requirement around `versions.json`.
 

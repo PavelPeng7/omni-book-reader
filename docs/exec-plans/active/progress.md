@@ -4,10 +4,18 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 
 ## Current state
 
+- Release 2.0.0: [`release-2.0.0.md`](release-2.0.0.md), preparing the incompatible managed-library release and bookshelf refresh fix; personal runtime state and migration records excluded.
+
+- Bookshelf flicker: [`../completed/bookshelf-refresh-stability.md`](../completed/bookshelf-refresh-stability.md), unchanged refresh now preserves DOM, loaded covers and search focus; 7 regression tests added, quick/full passed (128 passed, 1 existing fixture skipped), production bundle rebuilt. Native visual acceptance remains under TD-2026-005.
+
+- Managed library: [`../completed/file-organization.md`](../completed/file-organization.md), local implementation of #10–#15 complete; quick/full passed (121 passed, 1 existing fixture skipped), production bundle and release assets validated. Native desktop/mobile acceptance remains under TD-2026-005. No release or tracker closure performed.
+
 - Latest completed release plan: [`../completed/release-1.0.6.md`](../completed/release-1.0.6.md), public assets and release workflow verified.
 
 - Fixed selection behavior and inverse colors: [`../completed/selection-default-and-inverse.md`](../completed/selection-default-and-inverse.md), implementation and full verification complete (92 tests passed in the isolated release source, 1 existing fixture test skipped); native Android validation remains under TD-2026-001.
 
+- Readable annotation export names: [`../completed/readable-annotation-export-names.md`](../completed/readable-annotation-export-names.md), implementation and full verification complete (85 tests passed, 1 skipped).
+- Short annotation exports: [`../completed/short-annotation-export-names.md`](../completed/short-annotation-export-names.md), implementation and full verification complete (83 tests passed, 1 skipped).
 - Configurable selection navigation: [`../completed/configurable-selection-page-turns.md`](../completed/configurable-selection-page-turns.md), implementation and full verification complete.
 - Selection navigation change: [`../completed/selection-never-turns-pages.md`](../completed/selection-never-turns-pages.md), implementation and full verification complete.
 - Android selection fix: [`../completed/android-selection-paginator.md`](../completed/android-selection-paginator.md), event-level regression and fix complete; quick/full verification passed (82 passed, 1 skipped). Native device validation remains under TD-2026-001.

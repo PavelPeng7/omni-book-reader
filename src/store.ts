@@ -118,7 +118,7 @@ function normalizeReadingStats(value: unknown): ReadingStats | undefined {
   };
 }
 
-function normalizeBookState(value: unknown): BookState {
+export function normalizeBookState(value: unknown): BookState {
   const input = value && typeof value === "object" ? value as Partial<BookState> : {};
   const signature = input.sourceSignature && typeof input.sourceSignature === "object"
     ? input.sourceSignature
@@ -129,6 +129,9 @@ function normalizeBookState(value: unknown): BookState {
   const normalizedCoverPath = normalizeVaultPath(input.customCoverPath ?? "");
   const customCoverPath = /^(?:[A-Za-z]:|\/)/.test(normalizedCoverPath) ? "" : normalizedCoverPath;
   return {
+    ...(typeof input.bookId === "string" ? { bookId: input.bookId } : {}),
+    ...(typeof input.title === "string" ? { title: input.title.slice(0, 1000) } : {}),
+    ...(typeof input.author === "string" ? { author: input.author.slice(0, 1000) } : {}),
     sourceSignature: {
       size: Math.max(0, finite(signature.size)),
       mtime: Math.max(0, finite(signature.mtime)),
@@ -230,6 +233,7 @@ export function normalizeReaderData(value: unknown): ReaderData {
 }
 
 export class ReaderDataStore {
+  private lastError: unknown;
   private data: ReaderData = createDefaultData();
   private saveTimer: number | null = null;
   private saveChain: Promise<void> = Promise.resolve();
@@ -271,6 +275,18 @@ export class ReaderDataStore {
 
   get snapshot(): ReaderData {
     return structuredClone(this.data);
+  }
+
+  /** Keep live reader objects while refreshing discovery or relocated paths. */
+  reconcile(books: Record<string, BookState>): void {
+    const existing = new Map(Object.values(this.data.books).filter((book) => book.bookId).map((book) => [book.bookId, book]));
+    this.data.books = Object.fromEntries(Object.entries(books).map(([path, next]) => {
+      const live = next.bookId ? existing.get(next.bookId) : undefined;
+      if (!live) return [path, next];
+      for (const key of Object.keys(live) as Array<keyof BookState>) delete live[key];
+      Object.assign(live, next);
+      return [path, live];
+    }));
   }
 
   updateSettings(patch: Partial<ReaderSettings>): ReaderSettings {
@@ -346,7 +362,9 @@ export class ReaderDataStore {
     this.saveChain = this.saveChain
       .catch(() => undefined)
       .then(() => this.adapter.saveData(snapshot))
+      .then(() => { this.lastError = undefined; })
       .catch((error) => {
+        this.lastError = error;
         this.dirty = true;
         this.onError(error);
       });
@@ -360,6 +378,7 @@ export class ReaderDataStore {
     }
     await this.persist();
     await this.saveChain;
+    if (this.lastError) throw this.lastError instanceof Error ? this.lastError : new Error("Could not persist reader data", { cause: this.lastError });
   }
 
   private mergeById<T extends { id: string }>(left: T[], right: T[]): T[] {

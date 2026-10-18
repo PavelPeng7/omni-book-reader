@@ -1,5 +1,6 @@
 import { normalizePath } from "obsidian";
-import type { TAbstractFile, TFile, Vault } from "obsidian";
+import type { FileManager, TAbstractFile, TFile, Vault } from "obsidian";
+import { safeFileName } from "./media-utils";
 import type {
   AnnotationDocuments,
   BookState,
@@ -28,6 +29,8 @@ const STYLE_LABELS: Record<HighlightStyle, string> = {
 type AnnotationDocumentKind = "highlights" | "notes";
 
 export interface AnnotationDocumentInput {
+  outputFolder?: string;
+  bookId?: string;
   sourceFile: TFile;
   state: BookState;
   title: string;
@@ -37,6 +40,7 @@ export interface AnnotationDocumentInput {
 }
 
 export interface AnnotationRenderOptions {
+  bookId?: string;
   sourcePath?: string;
   vaultName?: string;
   preset?: ExportTemplatePreset;
@@ -82,14 +86,14 @@ function sortedHighlights(highlights: ReaderHighlight[]): ReaderHighlight[] {
   return [...highlights].sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id));
 }
 
-export function buildCfiLink(vaultName: string, sourcePath: string, cfi: string): string {
+export function buildCfiLink(vaultName: string, sourcePath: string, cfi: string, bookId?: string): string {
   const encode = (value: string): string => encodeURIComponent(value)
     .replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
   const params = [
     // `vault` is reserved by Obsidian and is resolved before custom protocol
     // handlers run. Keep the source Vault as plugin-owned metadata instead.
     vaultName ? `sourceVault=${encode(vaultName)}` : "",
-    `path=${encode(normalizePath(sourcePath))}`,
+    bookId ? `bookId=${encode(bookId)}` : `path=${encode(normalizePath(sourcePath))}`,
     `cfi=${encode(cfi)}`,
   ].filter(Boolean).join("&");
   return `obsidian://omni-book-reader?${params}`;
@@ -97,7 +101,7 @@ export function buildCfiLink(vaultName: string, sourcePath: string, cfi: string)
 
 function sourceLink(highlight: ReaderHighlight, options: AnnotationRenderOptions): string {
   if (!options.sourcePath) return "";
-  return `[回到原文](${buildCfiLink(options.vaultName ?? "", options.sourcePath, highlight.cfi)})`;
+  return `[回到原文](${buildCfiLink(options.vaultName ?? "", options.sourcePath, highlight.cfi, options.bookId)})`;
 }
 
 function renderClassicEntries(
@@ -259,23 +263,77 @@ function joinPath(...parts: string[]): string {
   return normalizePath(parts.filter(Boolean).join("/"));
 }
 
+function folderHash(sourceFile: TFile, attempt: number): string {
+  const key = `${normalizePath(sourceFile.path)}:${attempt}`;
+  let hash = 2166136261;
+  for (let index = 0; index < key.length; index += 1) {
+    hash = Math.imul(hash ^ key.charCodeAt(index), 16777619) >>> 0;
+  }
+  return hash.toString(36).padStart(7, "0");
+}
+
+function utf8Length(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+function readableFolderName(sourceFile: TFile, attempt: number): string {
+  const title = safeFileName(sourceFile.basename, "书")
+    .replace(/[\uD800-\uDBFF]$/, "")
+    .replace(/^[. ]+|[. ]+$/g, "") || "书";
+  let prefix = "";
+  for (const character of title) {
+    if (utf8Length(prefix + character) > 91) break;
+    prefix += character;
+  }
+  return `${prefix.trimEnd().replace(/\.+$/g, "") || "书"}-${folderHash(sourceFile, attempt)}`;
+}
+
+function isPreviousShortFolder(sourceFile: TFile, folderName: string): boolean {
+  const prefix = Array.from(safeFileName(sourceFile.basename, "书")).slice(0, 2).join("");
+  if (!folderName.startsWith(prefix) || !/^[0-9a-z]{7}$/.test(folderName.slice(prefix.length))) return false;
+  for (let attempt = 0; attempt < 1000; attempt += 1) {
+    if (folderName === `${prefix}${folderHash(sourceFile, attempt)}`) return true;
+  }
+  return false;
+}
+
+function hasReadableNames(sourceFile: TFile, paths: AnnotationDocuments): boolean {
+  const name = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
+  const folderName = name(parentPath(paths.highlightPath));
+  return name(paths.highlightPath) === "高亮.md" && name(paths.notePath) === "笔记.md"
+    && !isPreviousShortFolder(sourceFile, folderName)
+    && [folderName, name(parentPath(paths.notePath)), name(paths.highlightPath), name(paths.notePath)]
+      .every((part) => utf8Length(part) < 100);
+}
+
 export class AnnotationDocumentService {
   private writeChain: Promise<void> = Promise.resolve();
 
-  constructor(private readonly vault: Vault) {}
+  constructor(private readonly vault: Vault, private readonly fileManager: Pick<FileManager, "renameFile">) {}
 
   sync(input: AnnotationDocumentInput): Promise<void> {
-    const paths = input.state.annotationDocuments ?? this.createDocumentPaths(input.sourceFile);
-    input.state.annotationDocuments = paths;
     const job = this.writeChain
       .catch(() => undefined)
       .then(async () => {
+        const previousPaths = input.state.annotationDocuments;
+        const paths = input.outputFolder ? {
+          highlightPath: `${input.outputFolder}/高亮.md`, notePath: `${input.outputFolder}/笔记.md`,
+          createdDate: previousPaths?.createdDate || dateStamp(Date.now()),
+        } : previousPaths && hasReadableNames(input.sourceFile, previousPaths)
+          ? previousPaths
+          : {
+            ...this.createDocumentPaths(input.sourceFile),
+            ...(previousPaths ? { createdDate: previousPaths.createdDate } : {}),
+          };
         const preset = input.exportTemplate ?? "classic";
         const customTemplate = preset === "custom"
-          ? await this.loadCustomTemplate(input.customExportTemplatePath, paths)
+          ? await this.loadCustomTemplate(input.customExportTemplatePath, [paths, previousPaths])
           : "";
+        if (!input.outputFolder && previousPaths && previousPaths !== paths) await this.moveDocuments(input.sourceFile, previousPaths, paths);
+        input.state.annotationDocuments = paths;
         const options: AnnotationRenderOptions = {
           sourcePath: input.sourceFile.path,
+          bookId: input.bookId,
           vaultName: this.vault.getName(),
           preset,
           ...(customTemplate ? { customTemplate } : {}),
@@ -288,6 +346,21 @@ export class AnnotationDocumentService {
         await this.upsertManaged(paths.notePath, "notes", noteMarkdown);
       });
     this.writeChain = job.catch(() => undefined);
+    return job;
+  }
+
+  migrateDocumentPaths(sourceFile: TFile, state: BookState): Promise<boolean> {
+    const job = this.writeChain
+      .catch(() => undefined)
+      .then(async () => {
+        const previous = state.annotationDocuments;
+        if (!previous || hasReadableNames(sourceFile, previous)) return false;
+        const next = { ...this.createDocumentPaths(sourceFile), createdDate: previous.createdDate };
+        await this.moveDocuments(sourceFile, previous, next);
+        state.annotationDocuments = next;
+        return true;
+      });
+    this.writeChain = job.then(() => undefined, () => undefined);
     return job;
   }
 
@@ -319,10 +392,13 @@ export class AnnotationDocumentService {
     return job;
   }
 
-  private async loadCustomTemplate(path: string | undefined, documents: AnnotationDocuments): Promise<string> {
+  private async loadCustomTemplate(
+    path: string | undefined,
+    documents: (AnnotationDocuments | undefined)[],
+  ): Promise<string> {
     const normalized = normalizePath(path?.trim() ?? "");
     if (!normalized) throw new Error("尚未设置自定义导出模板路径");
-    if (normalized === documents.highlightPath || normalized === documents.notePath) {
+    if (documents.some((item) => item && (normalized === item.highlightPath || normalized === item.notePath))) {
       throw new Error("自定义模板不能使用当前书籍的导出文档");
     }
     const file = this.vault.getAbstractFileByPath(normalized);
@@ -333,17 +409,67 @@ export class AnnotationDocumentService {
   private createDocumentPaths(sourceFile: TFile): AnnotationDocuments {
     const createdDate = dateStamp(Date.now());
     const sourceFolder = parentPath(sourceFile.path);
-    const outputFolder = joinPath(sourceFolder, sourceFile.basename);
-    let suffix = "";
-    let attempt = 1;
-    while (true) {
-      const highlightPath = joinPath(outputFolder, `${sourceFile.basename}-Highlight-${createdDate}${suffix}.md`);
-      const notePath = joinPath(outputFolder, `${sourceFile.basename}-Note-${createdDate}${suffix}.md`);
-      if (!this.vault.getAbstractFileByPath(highlightPath) && !this.vault.getAbstractFileByPath(notePath)) {
+    for (let attempt = 0; attempt < 1000; attempt += 1) {
+      const outputFolder = joinPath(sourceFolder, readableFolderName(sourceFile, attempt));
+      if (!this.vault.getAbstractFileByPath(outputFolder)) {
+        const highlightPath = joinPath(outputFolder, "高亮.md");
+        const notePath = joinPath(outputFolder, "笔记.md");
         return { highlightPath, notePath, createdDate };
       }
-      attempt += 1;
-      suffix = `-${attempt}`;
+    }
+    throw new Error("无法为标注文档分配短目录名");
+  }
+
+  private async moveDocuments(sourceFile: TFile, previous: AnnotationDocuments, next: AnnotationDocuments): Promise<void> {
+    const moves = [
+      { from: previous.highlightPath, to: next.highlightPath },
+      { from: previous.notePath, to: next.notePath },
+    ];
+    const oldFolderPath = parentPath(previous.highlightPath);
+    const newFolderPath = parentPath(next.highlightPath);
+    const oldFolder = this.vault.getAbstractFileByPath(oldFolderPath);
+    const canMoveFolder = oldFolderPath === parentPath(previous.notePath)
+      && (oldFolderPath === joinPath(parentPath(sourceFile.path), sourceFile.basename)
+        || isPreviousShortFolder(sourceFile, oldFolderPath.slice(oldFolderPath.lastIndexOf("/") + 1)))
+      && oldFolder && !isFile(oldFolder) && "children" in oldFolder
+      && Array.isArray(oldFolder.children)
+      && !oldFolder.children.some((child: TAbstractFile) => !moves.some((move) => move.from === child.path)
+        && (child.name === "高亮.md" || child.name === "笔记.md"));
+    if (canMoveFolder) {
+      await this.fileManager.renameFile(oldFolder, newFolderPath);
+      const renamed: { file: TFile; intermediatePath: string }[] = [];
+      try {
+        for (const move of moves) {
+          const intermediatePath = joinPath(newFolderPath, move.from.slice(oldFolderPath.length + 1));
+          const file = this.vault.getAbstractFileByPath(intermediatePath);
+          if (!file) continue;
+          if (!isFile(file)) throw new Error(`原标注文档路径不是文件：${intermediatePath}`);
+          if (intermediatePath === move.to) continue;
+          await this.fileManager.renameFile(file, move.to);
+          renamed.push({ file, intermediatePath });
+        }
+      } catch (error) {
+        for (const item of renamed.reverse()) await this.fileManager.renameFile(item.file, item.intermediatePath);
+        await this.fileManager.renameFile(oldFolder, oldFolderPath);
+        throw error;
+      }
+      return;
+    }
+
+    await this.ensureFolder(newFolderPath);
+    const completed: { file: TFile; from: string }[] = [];
+    try {
+      for (const move of moves) {
+        const file = this.vault.getAbstractFileByPath(move.from);
+        if (!file) continue;
+        if (!isFile(file)) throw new Error(`原标注文档路径不是文件：${move.from}`);
+        if (this.vault.getAbstractFileByPath(move.to)) throw new Error(`短标注文档路径已被占用：${move.to}`);
+        await this.fileManager.renameFile(file, move.to);
+        completed.push({ file, from: move.from });
+      }
+    } catch (error) {
+      for (const move of completed.reverse()) await this.fileManager.renameFile(move.file, move.from);
+      throw error;
     }
   }
 

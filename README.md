@@ -6,7 +6,15 @@ The default reading typography follows Obsidian's configured text font and font 
 
 The plugin shell uses a Botanical / Organic Serif design system: warm alabaster paper, deep forest text, sage and terracotta accents, editorial serif headings, soft clay cards, pill controls, diffused elevation, and a scoped paper-grain texture. A matching dark botanical palette, reduced-motion behavior, keyboard focus rings, and mobile drawer layout are included. The design remains local-first and does not download web fonts or other interface assets.
 
-Click a highlight in the book, or use its note button in the reader sidebar, to add or edit a note. The plugin keeps a generated Highlight/Note Markdown pair under `<EPUB folder>/<book name>/`, using filenames such as `<book name>-Highlight-2026-08-01.md`. These documents are synchronized whenever highlights or notes change. Use the sidebar export buttons or the command palette to force a refresh and open the exported Markdown document.
+Open the bookshelf and choose **Import EPUB**, or use the file menu/command palette to import an EPUB already in your Vault. Import **moves** the original into a per-book folder in the visible `My Reader` library. The bookshelf shows managed books only. Identical EPUB bytes reopen the existing book and leave the duplicate source untouched; different books with the same filename remain separate.
+
+Each book folder contains its EPUB, versioned `book.json` (progress, bookmarks, annotations and statistics), covers, `高亮.md`, `笔记.md`, and chapter exports with local assets. Folder names retain a recognizable book-title prefix and short ID, below 100 UTF-8 bytes. Custom cover images are copied into the folder. Global preferences live in `settings.json` at the library root.
+
+Click a highlight or its sidebar note button to edit a note. Export buttons refresh the managed Markdown pair while preserving handwritten text outside managed blocks. You can rename or move a complete book folder inside the library, or copy it into another Vault's managed library, and retain its fixed book identity and reading data. New position links use that identity; links that name another Vault remain specific to that Vault.
+
+**Library location** in settings moves the complete library to a new or empty Vault folder. Nonempty and overlapping destinations are rejected. Deleting a book asks for confirmation and recycles its **entire folder, including handwritten files inside**. Resolve duplicate book IDs before continuing to write. If files change externally, writes stop instead of overwriting them; inspect the files and reload the plugin to read the external version.
+
+This is a fresh storage format: old reading data, exports and cover caches are not loaded, migrated, restored or automatically cleaned up. Reimport your EPUBs to start using it. Existing Obsidian file synchronization can carry the library, but concurrent edits to one book are not merged; finish syncing before changing devices.
 
 Annotations support highlight, underline, strikethrough, and squiggly styles, four colors, notes, and tags. The sidebar can combine tag, chapter, color, and note-status filters, then sort by creation time or chapter. Exported entries include an Obsidian CFI link that reopens the source EPUB at the exact location.
 

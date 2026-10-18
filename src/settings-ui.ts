@@ -1,4 +1,4 @@
-import { App, Modal, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { App, Modal, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
 import type { SettingDefinitionItem } from "obsidian";
 import { uiText } from "./i18n";
 import type { ReaderSettings } from "./types";
@@ -7,6 +7,29 @@ export interface SettingsHost {
   app: App;
   getReaderSettings(): ReaderSettings;
   updateReaderSettings(patch: Partial<ReaderSettings>): void;
+  getLibraryRoot?(): string;
+  relocateLibrary?(path: string): Promise<void>;
+}
+
+function librarySetting(setting: Setting, host: SettingsHost): void {
+  const t = (zh: string, en: string) => uiText(host.getReaderSettings().interfaceLanguage, zh, en);
+  let destination = host.getLibraryRoot?.() ?? "My Reader";
+  setting.setName(t("书库位置", "Library location"))
+    .setDesc(t("修改后整体移动书库。目标须为空；原有旧数据不会迁移。同步完成后再切换设备，同时编辑不会自动合并。", "Moves the entire library. Choose an empty destination. Legacy data is not migrated. Sync before switching devices; concurrent edits are not merged."))
+    .addText((text) => {
+      text.setValue(destination).setPlaceholder(destination).onChange((value) => { destination = value; });
+      text.inputEl.setAttribute("aria-label", t("新的书库位置", "New library location"));
+    })
+    .addButton((button) => button.setButtonText(t("搬迁书库", "Move library")).onClick(async () => {
+      button.setDisabled(true);
+      button.setButtonText(t("搬迁中…", "Moving…"));
+      try {
+        await host.relocateLibrary?.(destination);
+        new Notice(t("书库位置已更新", "Library location updated"));
+      } catch (error) { new Notice(error instanceof Error ? error.message : t("搬迁失败，原资料保留", "Move failed; original data preserved")); }
+      finally { button.setDisabled(false); button.setButtonText(t("搬迁书库", "Move library")); }
+    }));
+  setting.settingEl.addClass("omni-book-reader-library-setting");
 }
 
 function renderSettings(
@@ -16,6 +39,8 @@ function renderSettings(
 ): void {
   const get = (): ReaderSettings => host.getReaderSettings();
   const t = (zh: string, en: string): string => uiText(get().interfaceLanguage, zh, en);
+
+  if (host.relocateLibrary) librarySetting(new Setting(container), host);
 
   new Setting(container)
     .setName(t("阅读主题", "Reading theme"))
@@ -245,6 +270,10 @@ export class OmniBookReaderSettingTab extends PluginSettingTab {
     const t = (zh: string, en: string): string => uiText(language, zh, en);
 
     return [
+      {
+        name: t("书库位置", "Library location"),
+        render: (setting) => { librarySetting(setting, this.host); },
+      },
       {
         type: "group",
         heading: t("阅读设置", "Reading settings"),

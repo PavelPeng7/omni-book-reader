@@ -2422,10 +2422,47 @@ body.theme-dark .omni-book-reader-bookshelf {
 
 .omni-book-reader-bookshelf-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
   padding: 4px 7px 12px;
+}
+
+.omni-book-reader-library-action,
+.omni-book-reader-library-setting button {
+  min-height: var(--omni-touch-target, 44px);
+  border-radius: var(--omni-radius-control, 999px);
+  border: 1px solid var(--pavel-botanical-sage, var(--background-modifier-border));
+  color: var(--pavel-botanical-forest, var(--text-normal));
+  background: var(--pavel-botanical-paper, var(--background-primary));
+}
+
+.omni-book-reader-library-action:focus-visible,
+.omni-book-reader-library-setting :is(button, input):focus-visible {
+  outline: 2px solid var(--pavel-botanical-sage, var(--interactive-accent));
+  outline-offset: 2px;
+}
+
+.omni-book-reader-library-setting .setting-item-control {
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: var(--size-4-2);
+}
+
+.omni-book-reader-library-setting input {
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--omni-touch-target, 44px);
+}
+
+@media (max-width: 600px) {
+  .omni-book-reader-library-setting {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--size-4-3);
+  }
+  .omni-book-reader-library-setting .setting-item-control { justify-content: flex-start; }
 }
 
 .omni-book-reader-bookshelf-kicker {

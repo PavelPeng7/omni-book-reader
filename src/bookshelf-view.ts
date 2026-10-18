@@ -1,6 +1,7 @@
 import { FuzzySuggestModal, ItemView, Menu, Modal, Notice, TFile, WorkspaceLeaf, normalizePath, setIcon } from "obsidian";
 import { extractEpubCover } from "./epub-cover";
 import { uiLocale, uiText } from "./i18n";
+import type { ManagedLibrary } from "./managed-library";
 import type { ReaderDataStore } from "./store";
 import type { InterfaceLanguage, ReaderSettings } from "./types";
 
@@ -10,7 +11,10 @@ export interface BookshelfHost {
   store: ReaderDataStore;
   getReaderSettings(): ReaderSettings;
   updateReaderSettings(patch: Partial<ReaderSettings>): void;
-  getCoverCacheDirectory(): string;
+  library: ManagedLibrary;
+  getManagedFiles(): TFile[];
+  chooseImport(): void;
+  trashManagedBook(file: TFile): Promise<void>;
   openEpub(file: TFile): Promise<void>;
 }
 
@@ -29,17 +33,6 @@ const IMAGE_EXTENSIONS = new Set(["avif", "bmp", "gif", "jpeg", "jpg", "png", "s
 function fileSignature(file: TFile): string {
   return `${file.path}:${file.stat.size}:${file.stat.mtime}`;
 }
-
-function stableHash(value: string): string {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
-}
-
-interface PersistedCoverEntry { signature: string; file: string; mime: string }
 
 function imageMimeType(file: TFile): string {
   if (file.extension === "jpg") return "image/jpeg";
@@ -150,8 +143,8 @@ class DeleteBookModal extends Modal {
   onOpen(): void {
     this.modalEl.addClass("omni-book-reader-delete-modal");
     const t = (zh: string, en: string): string => uiText(this.language, zh, en);
-    this.titleEl.setText(t("删除书籍文件？", "Delete book file?"));
-    this.contentEl.createEl("p", { text: t(`“${this.file.basename}”将移入系统回收站。此操作不会删除其他笔记。`, `“${this.file.basename}” will be moved to the system trash. Other notes will not be deleted.`) });
+    this.titleEl.setText(t("回收整本书籍？", "Trash the entire book?"));
+    this.contentEl.createEl("p", { text: t(`“${this.file.basename}”的整个书籍文件夹将进入回收站，包含 EPUB、进度、批注、封面、导出和其中所有手写文件。`, `The entire folder for “${this.file.basename}” will be trashed, including its EPUB, progress, annotations, covers, exports, and all handwritten files inside.`) });
     const actions = this.contentEl.createDiv({ cls: "omni-book-reader-modal-actions" });
     actions.createEl("button", { text: t("取消", "Cancel") }).addEventListener("click", () => this.close());
     const remove = actions.createEl("button", { cls: "mod-warning", text: t("移入回收站", "Move to trash") });
@@ -190,8 +183,8 @@ export class OmniBookReaderBookshelfView extends ItemView {
   private coverGeneration = 0;
   private coverObserver: IntersectionObserver | null = null;
   private coverTasks = new WeakMap<Element, () => void>();
-  private persistedCovers: Record<string, PersistedCoverEntry> = {};
   private closed = false;
+  private renderedSignature: string | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: BookshelfHost) {
     super(leaf);
@@ -228,7 +221,6 @@ export class OmniBookReaderBookshelfView extends ItemView {
     this.registerEvent(this.app.vault.on("delete", () => this.render()));
     this.registerEvent(this.app.vault.on("rename", () => this.render()));
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.render()));
-    await this.loadPersistedCoverIndex();
     this.render();
   }
 
@@ -243,12 +235,13 @@ export class OmniBookReaderBookshelfView extends ItemView {
     this.coverCache.clear();
     this.coverLoads.clear();
     this.contentEl.empty();
+    this.renderedSignature = null;
   }
 
   private getBooks(): ShelfBook[] {
     const states = this.plugin.store.snapshot.books;
-    return this.app.vault.getFiles()
-      .filter((file) => file.extension.toLowerCase() === "epub" && !states[file.path]?.hiddenFromBookshelf)
+    return this.plugin.getManagedFiles()
+      .filter((file) => !states[file.path]?.hiddenFromBookshelf)
       .map((file) => {
         const state = states[file.path];
         return {
@@ -264,13 +257,26 @@ export class OmniBookReaderBookshelfView extends ItemView {
   }
 
   private render(): void {
+    if (this.closed) return;
+    const allBooks = this.getBooks();
+    const settings = this.plugin.getReaderSettings();
+    // Vault events and discovery can repeat without changing anything on the shelf.
+    // Keep loaded images and focused controls alive rather than replaying their entrance.
+    const signature = JSON.stringify([
+      settings.interfaceLanguage, settings.bookshelfDisplayMode, settings.bookshelfFilter, settings.bookshelfSort,
+      allBooks.map(({ file, ...state }) => [
+        file.basename, file.parent?.path, this.coverSignature(file), state,
+        relativeTime(state.lastOpenedAt, settings.interfaceLanguage),
+      ]),
+    ]);
+    if (signature === this.renderedSignature) return;
+    this.coverObserver?.disconnect();
+    this.coverTasks = new WeakMap();
     const t = (zh: string, en: string): string => this.text(zh, en);
     const content = this.contentEl;
     content.empty();
     content.addClass("omni-book-reader-bookshelf");
 
-    const allBooks = this.getBooks();
-    const settings = this.plugin.getReaderSettings();
     content.dataset.displayMode = settings.bookshelfDisplayMode;
     content.toggleClass("is-large-library", allBooks.length >= 30);
     this.releaseRemovedCovers(new Set(allBooks.map((book) => book.file.path)));
@@ -278,6 +284,8 @@ export class OmniBookReaderBookshelfView extends ItemView {
     const titleGroup = heading.createDiv();
     titleGroup.createDiv({ cls: "omni-book-reader-bookshelf-kicker", text: "OMNI BOOK READER" });
     titleGroup.createEl("h2", { text: t("我的文库", "My library") });
+    const importButton = heading.createEl("button", { cls: "omni-book-reader-library-action", text: t("导入 EPUB", "Import EPUB"), attr: { type: "button" } });
+    importButton.addEventListener("click", () => this.plugin.chooseImport());
     const count = heading.createDiv({ cls: "omni-book-reader-bookshelf-count", text: String(allBooks.length) });
     count.setAttribute("aria-label", t(`${allBooks.length} 本 EPUB`, `${allBooks.length} EPUB books`));
 
@@ -339,6 +347,7 @@ export class OmniBookReaderBookshelfView extends ItemView {
     const list = section.createDiv({ cls: "omni-book-reader-bookshelf-list" });
     const empty = section.createDiv({ cls: "omni-book-reader-bookshelf-empty" });
     this.renderBookList(list, empty, allBooks);
+    this.renderedSignature = signature;
   }
 
   private renderBookList(list: HTMLElement, empty: HTMLElement, allBooks: ShelfBook[]): void {
@@ -364,7 +373,7 @@ export class OmniBookReaderBookshelfView extends ItemView {
     empty.toggleClass("is-visible", books.length === 0);
     empty.setText(allBooks.length
       ? t("当前筛选中没有匹配的 EPUB", "No EPUBs match the current filter")
-      : t("Vault 中还没有 EPUB 文件", "There are no EPUB files in the Vault yet"));
+      : t("书库中还没有书籍，点击导入 EPUB 开始阅读。", "Your library is empty. Import an EPUB to start reading."));
 
     for (const book of books) {
       const button = list.createEl("button", {
@@ -468,7 +477,7 @@ export class OmniBookReaderBookshelfView extends ItemView {
     const promise = this.enqueueCover(async () => {
       if (this.closed || generation !== this.coverGeneration) return null;
       try {
-        const persisted = await this.readPersistedCover(file.path, signature);
+        const persisted = this.plugin.store.getBook(file.path)?.customCoverPath ? null : await this.readPersistedCover(file.path, signature);
         if (persisted) {
           const url = URL.createObjectURL(persisted);
           this.coverCache.set(file.path, { signature, url });
@@ -480,7 +489,6 @@ export class OmniBookReaderBookshelfView extends ItemView {
           const binary = await this.app.vault.readBinary(customCover);
           if (this.closed || generation !== this.coverGeneration) return null;
           const blob = new Blob([binary], { type: imageMimeType(customCover) });
-          await this.persistCover(file.path, signature, blob);
           const url = URL.createObjectURL(blob);
           this.coverCache.set(file.path, { signature, url });
           return url;
@@ -517,50 +525,19 @@ export class OmniBookReaderBookshelfView extends ItemView {
     return result;
   }
 
-  private async loadPersistedCoverIndex(): Promise<void> {
-    const adapter = this.app.vault.adapter;
-    const path = normalizePath(`${this.plugin.getCoverCacheDirectory()}/index.json`);
-    try {
-      if (!await adapter.exists(path)) return;
-      const value = JSON.parse(await adapter.read(path)) as unknown;
-      if (!value || typeof value !== "object") return;
-      for (const [bookPath, entry] of Object.entries(value as Record<string, unknown>)) {
-        if (!entry || typeof entry !== "object") continue;
-        const item = entry as Partial<PersistedCoverEntry>;
-        if (typeof item.signature === "string" && typeof item.file === "string" && typeof item.mime === "string") {
-          this.persistedCovers[bookPath] = { signature: item.signature, file: item.file, mime: item.mime };
-        }
+  private async readPersistedCover(bookPath: string, _signature: string): Promise<Blob | null> {
+    const folder = this.plugin.library.book(bookPath).folder;
+    if (!("children" in folder) || !Array.isArray(folder.children)) return null;
+    for (const child of folder.children) {
+      if (child instanceof TFile && child.basename === "cover") {
+        return new Blob([await this.app.vault.readBinary(child)], { type: imageMimeType(child) });
       }
-    } catch (error) {
-      console.warn("[Omni Book Reader] Could not read persisted cover cache", error);
     }
+    return null;
   }
 
-  private async readPersistedCover(bookPath: string, signature: string): Promise<Blob | null> {
-    const entry = this.persistedCovers[bookPath];
-    if (!entry || entry.signature !== signature) return null;
-    const path = normalizePath(`${this.plugin.getCoverCacheDirectory()}/${entry.file}`);
-    try {
-      if (!await this.app.vault.adapter.exists(path)) return null;
-      return new Blob([await this.app.vault.adapter.readBinary(path)], { type: entry.mime });
-    } catch {
-      return null;
-    }
-  }
-
-  private async persistCover(bookPath: string, signature: string, blob: Blob): Promise<void> {
-    if (!blob.size || blob.size > 20 * 1024 * 1024) return;
-    const adapter = this.app.vault.adapter;
-    const directory = this.plugin.getCoverCacheDirectory();
-    const file = `${stableHash(`${bookPath}:${signature}`)}.cover`;
-    try {
-      if (!await adapter.exists(directory)) await adapter.mkdir(directory);
-      await adapter.writeBinary(normalizePath(`${directory}/${file}`), await blob.arrayBuffer());
-      this.persistedCovers[bookPath] = { signature, file, mime: blob.type || "image/jpeg" };
-      await adapter.write(normalizePath(`${directory}/index.json`), JSON.stringify(this.persistedCovers));
-    } catch (error) {
-      console.warn("[Omni Book Reader] Could not persist cover cache", error);
-    }
+  private async persistCover(bookPath: string, _signature: string, blob: Blob): Promise<void> {
+    if (blob.size && blob.size <= 20 * 1024 * 1024) await this.plugin.library.setCover(bookPath, blob, false);
   }
 
   private releaseRemovedCovers(paths: Set<string>): void {
@@ -642,12 +619,16 @@ export class OmniBookReaderBookshelfView extends ItemView {
   }
 
   private setCustomCover(file: TFile, cover: TFile): void {
-    const state = this.stateFor(file);
-    state.customCoverPath = cover.path;
-    this.plugin.store.markChanged(0);
-    this.invalidateCover(file.path);
-    new Notice(this.text("已更新书籍封面", "Book cover updated"));
-    this.render();
+    void (async () => {
+      try {
+        const blob = new Blob([await this.app.vault.readBinary(cover)], { type: imageMimeType(cover) });
+        const path = await this.plugin.library.setCover(file.path, blob, true);
+        this.stateFor(file).customCoverPath = path;
+        this.plugin.store.markChanged(0);
+        this.invalidateCover(file.path);
+        this.render();
+      } catch (error) { new Notice(error instanceof Error ? error.message : this.text("封面保存失败", "Could not save cover")); }
+    })();
   }
 
   private clearCustomCover(file: TFile): void {
@@ -672,14 +653,13 @@ export class OmniBookReaderBookshelfView extends ItemView {
     const nextPath = normalizePath(`${file.parent?.path ? `${file.parent.path}/` : ""}${base}.epub`);
     if (nextPath === file.path) return;
     if (this.app.vault.getAbstractFileByPath(nextPath)) throw new Error(this.text("同名文件已存在", "A file with that name already exists"));
-    await this.app.vault.rename(file, nextPath);
+    await this.app.fileManager.renameFile(file, nextPath);
     new Notice(this.text("书籍已重命名", "Book renamed"));
   }
 
   private async deleteBook(file: TFile): Promise<void> {
     try {
-      await this.app.fileManager.trashFile(file);
-      this.plugin.store.removeBook(file.path);
+      await this.plugin.trashManagedBook(file);
       new Notice(this.text("书籍文件已移入系统回收站", "Book file moved to the system trash"));
     } catch (error) {
       console.error("[Omni Book Reader] Could not delete EPUB", error);
@@ -688,6 +668,7 @@ export class OmniBookReaderBookshelfView extends ItemView {
   }
 
   private invalidateCover(path: string): void {
+    this.renderedSignature = null;
     const cached = this.coverCache.get(path);
     if (cached?.url) URL.revokeObjectURL(cached.url);
     this.coverCache.delete(path);
