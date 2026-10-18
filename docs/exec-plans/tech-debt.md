@@ -4,6 +4,16 @@ Record intentional compromises that have a concrete maintenance, reliability, se
 
 ## Open items
 
+### TD-2026-006: Release actions use deprecated Node 20 action runtimes
+
+- Status: Open
+- Area: GitHub Actions release workflow
+- Introduced: observed 2026-10-19 during release 2.0.0, workflow 39143458915
+- Impact: checkout@v4, setup-node@v4 and action-gh-release@v2 emitted runtime deprecation annotations; GitHub currently forces their action scripts onto Node 24. The plugin build still explicitly uses Node 20 through setup-node.
+- Reason accepted: the complete release pipeline, attestations, public assets and hashes passed. Broad action upgrades were outside this release.
+- Exit criteria: update the action versions to supported runtimes and validate a complete tagged publication with the same assets and hash checks.
+- Owner/trigger: next release workflow maintenance, before the forced runtime compatibility affects publication.
+
 ### TD-2026-005: Managed-library native acceptance remains unverified
 
 - Status: Open

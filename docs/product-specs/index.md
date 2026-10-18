@@ -4,7 +4,7 @@ This directory is the source of truth for user-visible behavior and acceptance c
 
 ## Feature specifications
 
-- [`features/managed-library-storage.md`](features/managed-library-storage.md): visible managed library and portable per-book folders; implemented locally with automated integration coverage. Native Obsidian desktop/mobile validation remains tracked in technical debt.
+- [`features/managed-library-storage.md`](features/managed-library-storage.md): visible managed library and portable per-book folders; released in 2.0.0 with automated integration coverage. Native Obsidian desktop/mobile validation remains tracked in technical debt.
 
 ## Product summary
 

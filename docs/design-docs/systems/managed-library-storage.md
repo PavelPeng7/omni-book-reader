@@ -1,6 +1,6 @@
 # 受管书库与每书独立存储
 
-Status: Implemented locally; automated verification passed; native validation tracked in TD-2026-005
+Status: Released in 2.0.0; automated verification passed; native validation tracked in TD-2026-005
 Date: 2026-10-18
 
 ## 背景与决策

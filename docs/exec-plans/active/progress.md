@@ -4,13 +4,11 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 
 ## Current state
 
-- Release 2.0.0: [`release-2.0.0.md`](release-2.0.0.md), preparing the incompatible managed-library release and bookshelf refresh fix; personal runtime state and migration records excluded.
+- Latest completed release: [`../completed/release-2.0.0.md`](../completed/release-2.0.0.md), source 90d6b1f tagged 2.0.0; local quick/full, clean CI release pipeline, release-by-tag checks and public download hashes passed. Personal runtime state and migration records excluded.
 
 - Bookshelf flicker: [`../completed/bookshelf-refresh-stability.md`](../completed/bookshelf-refresh-stability.md), unchanged refresh now preserves DOM, loaded covers and search focus; 7 regression tests added, quick/full passed (128 passed, 1 existing fixture skipped), production bundle rebuilt. Native visual acceptance remains under TD-2026-005.
 
-- Managed library: [`../completed/file-organization.md`](../completed/file-organization.md), local implementation of #10–#15 complete; quick/full passed (121 passed, 1 existing fixture skipped), production bundle and release assets validated. Native desktop/mobile acceptance remains under TD-2026-005. No release or tracker closure performed.
-
-- Latest completed release plan: [`../completed/release-1.0.6.md`](../completed/release-1.0.6.md), public assets and release workflow verified.
+- Managed library: [`../completed/file-organization.md`](../completed/file-organization.md), implementation of #10–#15 published in 2.0.0 with the bookshelf fix; final quick/full passed (128 passed, 1 existing fixture skipped). Native desktop/mobile acceptance remains under TD-2026-005; tracker issues remain open.
 
 - Fixed selection behavior and inverse colors: [`../completed/selection-default-and-inverse.md`](../completed/selection-default-and-inverse.md), implementation and full verification complete (92 tests passed in the isolated release source, 1 existing fixture test skipped); native Android validation remains under TD-2026-001.
 

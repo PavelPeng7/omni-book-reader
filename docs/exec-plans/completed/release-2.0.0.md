@@ -1,6 +1,6 @@
 # Release 2.0.0
 
-Status: In progress
+Status: Complete
 Date: 2026-10-19
 
 ## Scope and acceptance
@@ -29,3 +29,14 @@ Personal library-location.json, live reading data, migration backups and the pri
 - Version metadata aligned at 2.0.0; the workflow now includes versioned release notes at creation so upgrade instructions are immediately visible.
 - `npm run verify:quick` and `npm run verify:full` passed: 128 tests passed, 1 existing fixture skipped; lint, TypeScript, production build and version/asset validation passed. Packaged the three verified assets in dist/.
 - Source review excludes personal migration records and the ignored library-location.json. Removed extra EOF blank lines in historical ticket documents before committing.
+- Release source commit `90d6b1f` pushed to main and annotated tag `2.0.0` pushed. [Release workflow 39143458915](https://github.com/PavelPeng7/omni-book-reader/actions/runs/39143458915) succeeded from that exact source, including clean npm ci, release:check, asset attestations and five consecutive release-by-tag asset checks.
+- [Public release 2.0.0](https://github.com/PavelPeng7/omni-book-reader/releases/tag/2.0.0) is the latest stable release. Its initial body includes the versioned compatibility/upgrade instructions and the generated comparison link.
+- Public unauthenticated downloads verified: exact asset names, nonempty size, manifest version 2.0.0, SHA-256 matching GitHub asset digests. main.js also matches the local verified production build; manifest/styles match the tagged Git blobs (avoiding Windows checkout newline differences).
+
+| Asset | Bytes | SHA-256 |
+| --- | ---: | --- |
+| main.js | 394026 | 45b7e678174decf092c9bb079145483d92480a4e95acc4d572505f0471002559 |
+| manifest.json | 310 | 93c8853d2d2432a32c58621a35ba5ef12481a655f7a6abe951e56c0295b2808b |
+| styles.css | 85179 | 83d873b800abf462eddcce2caf06a0f6be6ff15835ba4bf5f376dbf3cd5e8c96 |
+
+Native acceptance remains open under TD-2026-005; tracker issues were not closed. Personal migration records remain local and ignored through the repository-local exclude file. No runtime library data changed during publication. Existing action-runtime deprecation annotations did not fail this release and remain tracked as TD-2026-006.
