@@ -4,9 +4,9 @@ This file is the compact project-level checkpoint. Detailed multi-step work may 
 
 ## Current state
 
-- Release 2.0.1: [`release-2.0.1.md`](release-2.0.1.md); publishing initialization failure write protection and layout-ready/manual-refresh recovery. Full verification passed before version bump (133 regular tests; 3 fixture checks separately passed). Patched native cold start remains under TD-2026-005. Personal diagnostic reports remain local.
+- Latest completed release: [`../completed/release-2.0.1.md`](../completed/release-2.0.1.md), source 4e83c41 tagged 2.0.1; initialization failure write protection and layout-ready/manual-refresh recovery published. Local full (133 tests), clean CI pipeline, release-by-tag visibility and public download hashes passed. Patched native cold start remains under TD-2026-005. Personal diagnostic reports remain local.
 
-- Latest completed release: [`../completed/release-2.0.0.md`](../completed/release-2.0.0.md), source 90d6b1f tagged 2.0.0; local quick/full, clean CI release pipeline, release-by-tag checks and public download hashes passed. Personal runtime state and migration records excluded.
+- Previous release: [`../completed/release-2.0.0.md`](../completed/release-2.0.0.md), source 90d6b1f tagged 2.0.0; local quick/full, clean CI release pipeline, release-by-tag checks and public download hashes passed. Personal runtime state and migration records excluded.
 
 - Bookshelf flicker: [`../completed/bookshelf-refresh-stability.md`](../completed/bookshelf-refresh-stability.md), unchanged refresh now preserves DOM, loaded covers and search focus; 7 regression tests added, quick/full passed (128 passed, 1 existing fixture skipped), production bundle rebuilt. Native visual acceptance remains under TD-2026-005.
 
