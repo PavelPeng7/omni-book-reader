@@ -32,6 +32,12 @@ My Reader/
 - 删除前明确确认范围，将整个书籍文件夹送入回收站，包含用户放入其中的手写文件。
 - 设置中修改根目录时整体搬迁书库。目标目录非空时停止并提示，不自动合并；成功后才更新引导路径。
 
+## 本地安装身份检查
+
+同一 Vault 的插件目录只能有一份 `id: omni-book-reader` 的有效 `manifest.json`。开发目录和旧安装目录并存时，Obsidian 按扫描顺序将清单写入同一 ID 索引，后读到的目录覆盖先读到的目录；`community-plugins.json` 只有 ID，不能据此判断实际加载目录。排查时须检查全部清单，不能只看当前源码的版本。停用重复安装前将其发布资源备份到 Vault 外；旧 `data.json` 和阅读书库不参与清理，也不合并进新格式。
+
+可选只读检查：设置 `OMNI_BOOK_READER_LIBRARY_FIXTURE` 为含 `.obsidian/plugins` 和 `My Reader` 的 Vault 根目录后运行 `npx vitest run tests/managed-library-fixtures.test.ts`。检查安装身份唯一性、全部新格式文档可回读和资源引用存在；不驱动当前运行进程，也不能证明原生弹窗已消失。EPUB 解析另用 `OMNI_BOOK_READER_E2E_VAULT` 指向书库并运行 `tests/epub-fixtures.test.ts`。
+
 ## 数据与兼容性
 
 - JSON 是阅读状态及批注的事实来源；Markdown 单向生成，更新受管块并保留块外手写内容。受管块内手动修改可能被下次导出覆盖。
@@ -48,6 +54,16 @@ My Reader/
 相比继续扫描全 Vault 和集中 `data.json`，受管书库要求先导入书籍，产生更多小文件，但每书资料可以整体携带，且移除插件时不再将阅读资料和插件安装目录绑定。相比自动迁移旧状态，本方案采用全新格式，降低兼容分支成本，代价是旧进度和批注不会自动延续。
 
 ## 验证与实施状态
+
+### 初始化失败的恢复边界
+
+`ReaderDataStore.isLoaded` 区分默认的未加载界面状态与成功读取的持久状态。首次读取失败时保存原始异常，定时 persist 不提交默认数据，flush 返回原始加载错误。Vault 事件不向失败的 store 填充 discover 结果，避免“书架有书，但书库一直不能写”的半初始化状态。
+
+插件首次尝试失败后，在 `onLayoutReady` 再试一次；不在 `onload` 中等待布局，以免阻塞布局本身。手动刷新也先尝试完整初始化，成功后才恢复通常的 flush/discover 流程、设置与已恢复阅读页。同一时刻的恢复请求共享加载 Promise；卸载后不启动延迟恢复。持续故障仍保留文件并报告原始错误，不将 ready 强设为成功。书库仅在 discover 完成后设为 ready；重试会清除上次初始化的诊断标志，重新校验文件。
+
+本机原生会话曾实际出现 ready=false、settingsRaw=null 而后续 discover 得到 24 本书；完整初始化重试成功。索引尚未就绪可以在模拟 Vault 中复现同一保护错误链，但首次原始异常在旧实现里未保留，因此不能断言本机首次失败一定由索引时序引起。失败日志现在保留在控制台。
+
+### 受管书库实施
 
 `ManagedLibrary` 已接入插件生命周期、书架、阅读器导出与设置。`ReaderDataStore` 保留路径索引的运行时门面，在存储边界转换为固定身份与每书文档；`reconcile` 保持已打开阅读器的状态对象引用，同时更新当前位置。每书文档与设置的落盘格式均为 version 1，内存 ReaderData 的旧 schema 编号不代表继续加载旧文件。
 

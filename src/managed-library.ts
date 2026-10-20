@@ -85,6 +85,9 @@ export class ManagedLibrary implements DataAdapter {
   }
 
   async loadData(): Promise<ReaderData> {
+    this.ready = false;
+    this.settingsBlocked = false;
+    this.problems.length = 0;
     const location = await this.bootstrap.loadData();
     if (location !== null && location !== undefined) {
       if (!object(location) || location.version !== 1 || typeof location.root !== "string") {
@@ -115,8 +118,9 @@ export class ManagedLibrary implements DataAdapter {
       await this.vault.create(`${this.root}/settings.json`, this.settingsRaw);
     }
     await this.bootstrap.saveData({ version: 1, root: this.root });
+    const data = await this.discover();
     this.ready = true;
-    return this.discover();
+    return data;
   }
 
   private documents(): TFile[] {

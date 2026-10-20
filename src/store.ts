@@ -234,6 +234,8 @@ export function normalizeReaderData(value: unknown): ReaderData {
 
 export class ReaderDataStore {
   private lastError: unknown;
+  private loadError: unknown;
+  private loaded = false;
   private data: ReaderData = createDefaultData();
   private saveTimer: number | null = null;
   private saveChain: Promise<void> = Promise.resolve();
@@ -244,12 +246,21 @@ export class ReaderDataStore {
     private readonly onError: (error: unknown) => void = console.error,
   ) {}
 
-  async load(): Promise<void> {
+  get isLoaded(): boolean { return this.loaded; }
+
+  async load(): Promise<boolean> {
     try {
       this.data = normalizeReaderData(await this.adapter.loadData());
+      this.loaded = true;
+      this.loadError = undefined;
+      this.lastError = undefined;
+      this.dirty = false;
+      return true;
     } catch (error) {
+      this.loaded = false;
+      this.loadError = error;
       this.onError(error);
-      this.data = createDefaultData();
+      return false;
     }
   }
 
@@ -356,6 +367,8 @@ export class ReaderDataStore {
   }
 
   async persist(): Promise<void> {
+    // Initialization failures must never submit fallback defaults to storage.
+    if (!this.loaded) return;
     if (!this.dirty) return this.saveChain;
     this.dirty = false;
     const snapshot = structuredClone(this.data);
@@ -376,6 +389,7 @@ export class ReaderDataStore {
       window.clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
+    if (!this.loaded) throw this.loadError instanceof Error ? this.loadError : new Error("Reader data has not loaded", { cause: this.loadError });
     await this.persist();
     await this.saveChain;
     if (this.lastError) throw this.lastError instanceof Error ? this.lastError : new Error("Could not persist reader data", { cause: this.lastError });

@@ -62,6 +62,8 @@ export default class OmniBookReaderPlugin extends Plugin {
   store!: ReaderDataStore;
   library!: ManagedLibrary;
   private libraryRefreshTimer: number | null = null;
+  private libraryLoad: Promise<boolean> | null = null;
+  private stopping = false;
   private annotationDocuments!: AnnotationDocumentService;
   private commandLabels: Array<{ command: Command; zh: string; en: string }> = [];
   private bookshelfRibbonEl: HTMLElement | null = null;
@@ -74,9 +76,10 @@ export default class OmniBookReaderPlugin extends Plugin {
       saveData: async (value) => { await adapter.write(locationPath, JSON.stringify(value)); },
     });
     this.store = new ReaderDataStore(this.library, (error) => {
+      console.error("[Omni Book Reader] Library data operation failed", error);
       new Notice(error instanceof Error ? error.message : "Could not save library data");
     });
-    await this.store.load();
+    await this.loadLibraryData();
     const t = (zh: string, en: string): string => this.text(zh, en);
     this.annotationDocuments = new AnnotationDocumentService(this.app.vault, this.app.fileManager);
     for (const problem of this.library.problems) new Notice(problem);
@@ -211,6 +214,7 @@ export default class OmniBookReaderPlugin extends Plugin {
     this.addUiCommand({ id: "import-epub", callback: () => this.chooseImport() }, "导入 EPUB 到书库", "Import EPUB into library");
     this.addUiCommand({ id: "refresh-library", callback: () => { void this.refreshLibrary(); } }, "刷新书库", "Refresh library");
     const changed = () => {
+      if (!this.store.isLoaded) return;
       this.store.reconcile(this.library.project(this.store.snapshot.books));
       if (this.libraryRefreshTimer !== null) window.clearTimeout(this.libraryRefreshTimer);
       this.libraryRefreshTimer = window.setTimeout(() => { this.libraryRefreshTimer = null; void this.refreshLibrary(); }, 350);
@@ -235,11 +239,24 @@ export default class OmniBookReaderPlugin extends Plugin {
     }));
 
     this.addSettingTab(new OmniBookReaderSettingTab(this.app, this));
+    this.app.workspace.onLayoutReady(() => {
+      if (!this.stopping && !this.store.isLoaded) void this.refreshLibrary();
+    });
+  }
+
+  private async loadLibraryData(): Promise<boolean> {
+    if (this.libraryLoad) return this.libraryLoad;
+    this.libraryLoad = this.store.load();
+    try { return await this.libraryLoad; }
+    finally { this.libraryLoad = null; }
   }
 
   onunload(): void {
+    this.stopping = true;
     if (this.libraryRefreshTimer !== null) window.clearTimeout(this.libraryRefreshTimer);
-    void this.store?.flush();
+    if (this.store?.isLoaded) {
+      void this.store.flush().catch((error: unknown) => console.error("[Omni Book Reader] Could not flush library on unload", error));
+    }
     void this.annotationDocuments?.flush();
   }
 
@@ -269,11 +286,23 @@ export default class OmniBookReaderPlugin extends Plugin {
 
   async refreshLibrary(): Promise<void> {
     try {
-      await this.store.flush();
+      const recovering = !this.store.isLoaded;
+      if (recovering) {
+        if (!await this.loadLibraryData()) return;
+      } else await this.store.flush();
+      if (this.stopping) return;
       await this.library.run(() => this.library.discover());
       this.store.reconcile(this.library.project(this.store.snapshot.books));
       this.refreshBookshelves();
       for (const problem of this.library.problems) new Notice(problem);
+      if (recovering) {
+        for (const leaf of this.app.workspace.getLeavesOfType(OMNI_BOOK_READER_VIEW_TYPE)) {
+          if (leaf.view instanceof OmniBookReaderView) {
+            leaf.view.applySettings();
+            if (leaf.view.file) await leaf.view.onLoadFile(leaf.view.file);
+          }
+        }
+      }
     } catch (error) { this.reportLibraryError(error); }
   }
 

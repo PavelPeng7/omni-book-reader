@@ -114,6 +114,31 @@ beforeEach(() => {
 });
 
 describe("managed library through public Vault operations", () => {
+  it("preserves the initialization error without retrying writes, then loads once the Vault index is ready", async () => {
+    const vault = new MemoryVault();
+    vault.add("My Reader");
+    let indexed = false;
+    const lookup = vault.getAbstractFileByPath.bind(vault);
+    vi.spyOn(vault, "getAbstractFileByPath").mockImplementation((path) => indexed ? lookup(path) : null);
+    const location = new Bootstrap();
+    const library = new ManagedLibrary(vault as unknown as Vault, vault as unknown as FileManager, location);
+    const onError = vi.fn();
+    const store = new ReaderDataStore(library, onError);
+    await store.load();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0]![0]).toEqual(new Error("Exists: My Reader"));
+    store.updateSettings({ fontSizePercent: 160 });
+    await expect(store.flush()).rejects.toThrow("Exists: My Reader");
+    await expect(store.flush()).rejects.toThrow("Exists: My Reader");
+    expect(onError).toHaveBeenCalledOnce();
+    expect(location.saves).toBe(0);
+    indexed = true;
+    await store.load();
+    store.updateSettings({ fontSizePercent: 140 });
+    await expect(store.flush()).resolves.toBeUndefined();
+    expect(JSON.parse(lookup("My Reader/settings.json")!.text).settings.fontSizePercent).toBe(140);
+  });
+
   it("moves imports, persists per-book state and settings, and reloads without old data", async () => {
     const vault = new MemoryVault();
     const legacy = vault.add("old/data.json", "{old progress}");
